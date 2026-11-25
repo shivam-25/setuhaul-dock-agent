@@ -145,15 +145,57 @@ exact failure this project exists to prevent. The first QA pass showed it direct
 reported 3 audit rows while the audit table reported none, because the two reads landed on
 different containers.
 
-The demo is pinned to **reserved concurrency 1**, which forces every request through one container
-and restores single-writer semantics. That makes the demo honest, not the architecture correct.
-The guarantee comes from the database, and the proof in `docs/INTEGRITY_PROOF.json` is a
-single-writer proof. **On Postgres with `slot_locks` as written, the guarantee holds with no
+The demo sets **reserved concurrency 1**, and I originally recorded that this forces every request
+through one container. **That is wrong, and measuring it proved it wrong.** Reserved concurrency
+caps how many executions may run *at the same time*; it does not limit how many warm execution
+environments Lambda keeps, and it does not pin requests to one of them. Polling `/api/meta` every
+8 seconds with no writes in between, `audit_rows` went 1 -> 1 -> ... -> 4: two containers,
+each holding its own SQLite file, answering alternate requests.
+
+So on this deployment the dock board and the audit trail can disagree between one refresh and the
+next, and two drivers genuinely could be sold the same slot. The deployed demo does **not** carry
+the integrity guarantee. The guarantee comes from the database, and the proof in
+`docs/INTEGRITY_PROOF.json` is a single-writer proof produced by `scripts/race_test.py` against one
+SQLite file. **On Postgres with `slot_locks` as written, the guarantee holds with no
 concurrency limit at all** — that is the migration, and it is the reason the design never leaned on
 application-level locking.
 
 **3. State is not durable.** `/tmp` is wiped on cold start, so the day resets by itself. Fine for a
 demo; it is the second reason the design calls for Postgres.
+
+### What to do about it
+
+Two options, and they are not the same kind of fix.
+
+**To make the demo consistent** (a demo fix, with a running cost): publish a version, point an
+alias at it, and give that alias provisioned concurrency 1. Provisioned concurrency pre-initialises
+a fixed set of execution environments and routes to them, so with reserved 1 + provisioned 1 there
+is one environment serving traffic. Roughly $11/month at 1024 MB while it is switched on, so turn
+it off after the demo.
+
+```bash
+V=$(aws lambda publish-version --function-name setuhaul-dock-agent \
+      --region ap-southeast-2 --query Version --output text)
+aws lambda create-alias --function-name setuhaul-dock-agent --name live \
+      --function-version "$V" --region ap-southeast-2
+aws lambda put-provisioned-concurrency-config --function-name setuhaul-dock-agent \
+      --qualifier live --provisioned-concurrent-executions 1 --region ap-southeast-2
+# then recreate the function URL against --qualifier live and update NEXT_PUBLIC_API_URL
+# turn it off again:
+aws lambda delete-provisioned-concurrency-config --function-name setuhaul-dock-agent \
+      --qualifier live --region ap-southeast-2
+```
+
+Even this only makes a replacement unlikely, not impossible. It buys a clean demo; it does not buy
+the guarantee.
+
+**To make the system correct**: move the working database to Postgres. `slot_locks` ports
+unchanged, the single-writer proof becomes a real multi-writer guarantee, and both the split-state
+and the non-durability problems disappear at once. Remember that a partial index on
+`held_until > now()` is illegal there, because index predicates must be IMMUTABLE.
+
+Until one of those is done, present the integrity proof by running `scripts/race_test.py` locally,
+where it is a true single-writer test, and say plainly that the deployed demo does not prove it.
 
 ## Teardown
 

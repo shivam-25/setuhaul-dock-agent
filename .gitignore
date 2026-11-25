@@ -10,3 +10,4 @@ web/out/
 .env.local
 build/
 lambda.zip
+.vercel/

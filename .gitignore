@@ -8,3 +8,5 @@ web/out/
 .DS_Store
 .env
 .env.local
+build/
+lambda.zip

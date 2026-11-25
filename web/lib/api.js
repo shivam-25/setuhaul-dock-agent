@@ -1,9 +1,15 @@
 export const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8080";
 
+const TOKEN = process.env.NEXT_PUBLIC_DEMO_TOKEN || "";
+
 async function j(path, opts) {
   const r = await fetch(`${API}${path}`, {
     ...opts,
-    headers: { "content-type": "application/json", ...(opts?.headers || {}) },
+    headers: {
+      "content-type": "application/json",
+      ...(TOKEN ? { "x-demo-token": TOKEN } : {}),
+      ...(opts?.headers || {}),
+    },
   });
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.json();

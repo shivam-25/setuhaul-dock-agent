@@ -2,17 +2,23 @@
 from __future__ import annotations
 import json, re, time, uuid
 from datetime import datetime, timedelta
+import os
 import boto3
 from botocore.config import Config
 from . import prompts
 from .capacity import (Ctx, dt_, ts, CONFIDENCE_BUFFER_MIN, candidates, feasible,
                        rank_options, claim, commit_booking, LostRace, audit, ACTIVE)
 
-REGION, PROFILE = "ap-southeast-2", "shivam2505"
+REGION = os.environ.get("AWS_REGION") or "ap-southeast-2"
+# A named profile is a developer-laptop idea. On Lambda or AgentCore there is no profile and no
+# key: the one execution role supplies credentials. Setting a profile there fails outright, which
+# is the correct failure - it means something is reaching for a credential it should not have.
+PROFILE = os.environ.get("SETUHAUL_AWS_PROFILE")
 MODEL_FAST = "apac.amazon.nova-micro-v1:0"
 MODEL_DEEP = "apac.amazon.nova-pro-v1:0"
 
-_session = boto3.Session(profile_name=PROFILE, region_name=REGION)
+_session = (boto3.Session(profile_name=PROFILE, region_name=REGION) if PROFILE
+            else boto3.Session(region_name=REGION))
 _brt = _session.client("bedrock-runtime",
                        config=Config(retries={"max_attempts": 3, "mode": "adaptive"},
                                      read_timeout=30))

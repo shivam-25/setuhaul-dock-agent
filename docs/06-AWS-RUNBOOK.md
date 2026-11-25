@@ -114,3 +114,59 @@ enforced server-side from the token, never from a request parameter.
   ThrottlingException                  -> backoff; this is where p95 latency actually lives
   401 from API Gateway                 -> audience/issuer mismatch in the JWT authorizer
   Cannot reach RDS                     -> security group, not credentials. Check SG first.
+
+---
+
+# Part E — what is actually deployed, and what it does not prove
+
+This was deployed and driven in a browser on 25 Nov 2026.
+
+| Piece | Where |
+|---|---|
+| Agent + API | AWS Lambda `setuhaul-dock-agent`, ap-southeast-2, python3.12, 1024 MB |
+| Public endpoint | Lambda Function URL, auth NONE, CORS owned by the Function URL |
+| Model access | Execution role `setuhaul-dock-agent-exec`, scoped to `amazon.nova-*` only |
+| Web interface | Vercel, `https://setuhaul-dock-desk.vercel.app` |
+| State | SQLite rebuilt into `/tmp` on cold start |
+
+Measured through the public URL: a booking turn **833–986 ms**, an escalation **892 ms**, a refused
+injection **1 ms**.
+
+## Three things this deployment is not
+
+**1. It is not access-controlled.** The Function URL is public. A shared token blocks drive-by
+scanners, but it ships inside the browser bundle, so anyone who opens the page can read it. That is
+a demo gate, not authentication. The real design is the Cognito pool in Part A, where a token is
+issued per person and carries a facility.
+
+**2. It is not the integrity guarantee.** Each Lambda container gets its own `/tmp`, so two warm
+containers would hold two separate SQLite files and two drivers could be sold the same slot — the
+exact failure this project exists to prevent. The first QA pass showed it directly: the header
+reported 3 audit rows while the audit table reported none, because the two reads landed on
+different containers.
+
+The demo is pinned to **reserved concurrency 1**, which forces every request through one container
+and restores single-writer semantics. That makes the demo honest, not the architecture correct.
+The guarantee comes from the database, and the proof in `docs/INTEGRITY_PROOF.json` is a
+single-writer proof. **On Postgres with `slot_locks` as written, the guarantee holds with no
+concurrency limit at all** — that is the migration, and it is the reason the design never leaned on
+application-level locking.
+
+**3. State is not durable.** `/tmp` is wiped on cold start, so the day resets by itself. Fine for a
+demo; it is the second reason the design calls for Postgres.
+
+## Teardown
+
+```bash
+aws lambda delete-function-url-config --function-name setuhaul-dock-agent --region ap-southeast-2
+aws lambda delete-function          --function-name setuhaul-dock-agent --region ap-southeast-2
+aws iam delete-role-policy --role-name setuhaul-dock-agent-exec --policy-name invoke-nova
+aws iam detach-role-policy --role-name setuhaul-dock-agent-exec \
+    --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+aws iam delete-role        --role-name setuhaul-dock-agent-exec
+npx vercel remove setuhaul-dock-desk --yes
+```
+
+Nothing here costs money at rest except CloudWatch log retention. There is no NAT gateway, no
+provisioned concurrency and no idle database — which was deliberate, after the Ramco pilot spent
+$43/month on a NAT gateway that served one function.

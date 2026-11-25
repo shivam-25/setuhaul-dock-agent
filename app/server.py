@@ -22,7 +22,31 @@ LIVE = pathlib.Path(os.environ.get("SETUHAUL_LIVE_DB", ROOT / "work" / "live.db"
 DEFAULT_NOW = os.environ.get("SETUHAUL_NOW", "2026-08-04T10:05:00+05:30")
 
 app = FastAPI(title="SetuHaul dock exception service")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# CORS must be owned by exactly ONE layer. A Lambda Function URL applies its own CORS config to
+# every response, so adding the middleware too emits two Access-Control-Allow-Origin headers and
+# every browser rejects the response - while curl, which does not enforce CORS, reports 200.
+# That is why this only shows up when you actually open the page.
+ON_LAMBDA = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+ALLOWED_ORIGINS = [o for o in os.environ.get("SETUHAUL_ORIGINS", "*").split(",") if o]
+if not ON_LAMBDA:
+    app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS,
+                       allow_methods=["GET", "POST"], allow_headers=["*"])
+
+# A demo token, NOT authentication. It ships in the browser bundle, so anyone who opens the page
+# can read it. It exists only to stop drive-by scanners spending Bedrock tokens on this account,
+# which is the realistic threat to a public function URL. Real access control is the Cognito pool
+# described in docs/06-AWS-RUNBOOK.md: there the token is issued per person and carries a facility.
+DEMO_TOKEN = os.environ.get("SETUHAUL_DEMO_TOKEN")
+
+@app.middleware("http")
+async def gate(request, call_next):
+    if DEMO_TOKEN and request.url.path.startswith("/api/") \
+       and request.method != "OPTIONS" \
+       and request.headers.get("x-demo-token") != DEMO_TOKEN:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "missing or wrong x-demo-token"}, status_code=401)
+    return await call_next(request)
 
 def reset_live():
     for s in ("", "-wal", "-shm"):

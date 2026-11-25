@@ -136,6 +136,13 @@ def apply_eta_rule(facts: dict, original_eta: datetime) -> tuple[datetime, str, 
 _CONFIRM = re.compile(r"\bconfirm(ed|ation)?\b", re.I)
 _TIME = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
 _DOCK = re.compile(r"\bD([1-9])\b")
+# OPTIONS is a shortlist of the feasible chains, never the whole board. A reply that
+# generalises from it ("all slots are free") is false even when every dock and time it
+# names is in OPTIONS, so C1/C2 cannot catch it. C8 does.
+_OVERCLAIM = re.compile(
+    r"\b(all|every)\b[^.]{0,30}?\b(slots?|docks?)\b[^.]{0,30}?\b(free|open|available|empty)\b"
+    r"|\b(slots?|docks?)\b[^.]{0,25}?\b(all|every)\b[^.]{0,25}?\b(free|open|available)\b"
+    r"|\beverything\s+is\s+(free|open|available)\b", re.I)
 
 def output_checks(reply: str, options: list, status: str, held_slot_labels: set) -> list[str]:
     fails = []
@@ -151,6 +158,8 @@ def output_checks(reply: str, options: list, status: str, held_slot_labels: set)
     if _CONFIRM.search(reply) and status != "CONFIRMED":
         fails.append(f"C4 said 'confirmed' while status is {status}")
     if re.search(r"\[phone\]|\[email\]", reply): fails.append("C7 echoed masked personal data")
+    if _OVERCLAIM.search(reply):
+        fails.append("C8 claimed availability beyond the options given")
     return fails
 
 def draft_reply(context: str, options: list, status: str) -> tuple[str, int, list[str]]:
@@ -331,10 +340,12 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
     if intent != "BOOK":
         box(9, "hold", "none taken - the driver is asking, not booking")
         status = "NOT_RESERVED"
-        ctxt = (f"These slots are currently free for {shipment_id}. NONE of them is reserved - "
-                f"say so plainly, once, for all of them together, and tell the driver to reply "
-                f"with the one they want so we can hold it. Do not single any one out as "
-                f"unreserved, because that implies the others are.")
+        ctxt = (f"Offer the driver exactly the {len(shown)} slots in OPTIONS and nothing else. "
+                f"NONE of these {len(shown)} is reserved - say so plainly, once, for them "
+                f"together, and tell the driver to reply with the one they want so we can hold "
+                f"it. Do not single any one out as unreserved, because that implies the others "
+                f"are. These are a shortlist, not the whole schedule: never say or imply that "
+                f"all slots, every slot, or the dock board generally is free or open.")
     else:
         best = shown[0]
         got = claim(con, best.slot_ids, thread_id, shipment_id, now); con.commit()

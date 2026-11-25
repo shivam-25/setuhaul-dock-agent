@@ -29,7 +29,7 @@ Coordinator side: the dock board across both facilities with open / held / booke
 states, the append-only audit log showing all eight decisions with their box numbers, and the
 "why this answer" panel listing every candidate with the predicate that refused it.
 
-## Two things the run exposes
+## Three things the run exposes
 
 **The header and the audit table disagree.** In `qa-live-08.jpg` the navigation bar reports
 `0 audit rows` while the table below lists eight. Two Lambda execution environments, each with its
@@ -40,3 +40,16 @@ own SQLite file in `/tmp`, answered those two reads. This is the limitation in
 the console sits at 10:05 reports `31 of 79 feasible`; the escalation happened at 16:30, where it
 is `0 of 79`. That is the clock parameter working as designed — the snapshot contains no "now" —
 but when demonstrating, set the clock to 16:30 first or the two numbers look contradictory.
+
+**A reply generalised from the shortlist, and no check caught it.** Shown three options for
+SHP1013, the model wrote *"All slots are free: D2 12:00 to 13:00, D4 12:00 to 13:00, D1 13:00 to
+14:00."* Replaying that turn against the same data gives **37 of 79 chains feasible**, of which
+three were shown. The sentence is wrong twice over: 42 chains were ruled out, and 34 feasible ones
+were withheld. It passed `CHECKS PASSED` because C1 and C2 only police dock codes and times, and
+every code and time it named was in OPTIONS.
+
+Two causes, both mine. The situation string said *"These slots are currently free"*, and the model
+moved the determiner to *"All"*. And `output_checks` had no rule against a quantified availability
+claim. Fixed in both places: the situation string now states that OPTIONS is a shortlist and not
+the schedule, and **C8** rejects a reply that calls all or every slot free. The oracle eval
+(1.0000 / 1.0000) and the race test (10/10) still pass.

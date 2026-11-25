@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-25T15:09:26",
+  "generated": "2026-11-25T15:17:20",
   "cases": 44,
   "results": [
     {
@@ -7,12 +7,12 @@
       "n": 44,
       "errors": 0,
       "intent": 0.8409090909090909,
-      "eta": 0.9772727272727273,
-      "early": 0.9545454545454546,
+      "eta": 0.9545454545454546,
+      "early": 0.9772727272727273,
       "latest": 0.9772727272727273,
       "all_four": 0.7727272727272727,
-      "p50_ms": 2657,
-      "p95_ms": 4409,
+      "p50_ms": 843,
+      "p95_ms": 4032,
       "in_tok": 46577,
       "out_tok": 2754,
       "rows": [
@@ -336,9 +336,9 @@
           "msg": "I will reach 12:45 or so, maybe 13:15",
           "intent": true,
           "eta": true,
-          "early": false,
+          "early": true,
           "latest": true,
-          "ok": false,
+          "ok": true,
           "got": {
             "intent": "REPORT_DELAY",
             "eta": "13:15",
@@ -356,13 +356,13 @@
           "id": "X17",
           "msg": "ETA 10:30 to 11:00",
           "intent": true,
-          "eta": true,
+          "eta": false,
           "early": true,
           "latest": true,
-          "ok": true,
+          "ok": false,
           "got": {
             "intent": "REPORT_DELAY",
-            "eta": "11:00",
+            "eta": "10:00",
             "early": null,
             "latest": null
           },
@@ -940,7 +940,9 @@
             "latest": null
           }
         }
-      ]
+      ],
+      "book_precision": 1.0,
+      "book_recall": 0.6
     },
     {
       "model": "apac.amazon.nova-lite-v1:0",
@@ -951,8 +953,8 @@
       "early": 1.0,
       "latest": 1.0,
       "all_four": 0.75,
-      "p50_ms": 942,
-      "p95_ms": 3948,
+      "p50_ms": 910,
+      "p95_ms": 3832,
       "in_tok": 46577,
       "out_tok": 2842,
       "rows": [
@@ -1880,21 +1882,23 @@
             "latest": null
           }
         }
-      ]
+      ],
+      "book_precision": 0.625,
+      "book_recall": 1.0
     },
     {
       "model": "global.amazon.nova-2-lite-v1:0",
       "n": 44,
       "errors": 0,
       "intent": 0.9545454545454546,
-      "eta": 0.5909090909090909,
+      "eta": 0.5681818181818182,
       "early": 0.8636363636363636,
       "latest": 0.8863636363636364,
-      "all_four": 0.5227272727272727,
-      "p50_ms": 1166,
-      "p95_ms": 3836,
+      "all_four": 0.5,
+      "p50_ms": 1119,
+      "p95_ms": 3587,
       "in_tok": 66664,
-      "out_tok": 4242,
+      "out_tok": 4214,
       "rows": [
         {
           "id": "X01",
@@ -2467,13 +2471,13 @@
           "id": "X28",
           "msg": "No delay, reaching as planned",
           "intent": true,
-          "eta": true,
+          "eta": false,
           "early": true,
           "latest": true,
-          "ok": true,
+          "ok": false,
           "got": {
             "intent": "REPORT_DELAY",
-            "eta": "09:30",
+            "eta": "09:00",
             "early": null,
             "latest": null
           },
@@ -2820,7 +2824,9 @@
             "latest": null
           }
         }
-      ]
+      ],
+      "book_precision": 0.8333333333333334,
+      "book_recall": 1.0
     },
     {
       "model": "apac.amazon.nova-pro-v1:0",
@@ -2831,10 +2837,10 @@
       "early": 0.9772727272727273,
       "latest": 1.0,
       "all_four": 0.75,
-      "p50_ms": 991,
-      "p95_ms": 1605,
+      "p50_ms": 907,
+      "p95_ms": 1859,
       "in_tok": 46577,
-      "out_tok": 2193,
+      "out_tok": 2179,
       "rows": [
         {
           "id": "X01",
@@ -3760,7 +3766,9 @@
             "latest": null
           }
         }
-      ]
+      ],
+      "book_precision": 1.0,
+      "book_recall": 0.8
     }
   ]
 }

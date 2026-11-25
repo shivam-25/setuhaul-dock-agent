@@ -325,8 +325,10 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
     if intent != "BOOK":
         box(9, "hold", "none taken - the driver is asking, not booking")
         status = "NOT_RESERVED"
-        ctxt = (f"The driver asked what is possible for {shipment_id}. These slots are open but "
-                f"nothing is reserved for them yet.")
+        ctxt = (f"These slots are currently free for {shipment_id}. NONE of them is reserved - "
+                f"say so plainly, once, for all of them together, and tell the driver to reply "
+                f"with the one they want so we can hold it. Do not single any one out as "
+                f"unreserved, because that implies the others are.")
     else:
         best = shown[0]
         got = claim(con, best.slot_ids, thread_id, shipment_id, now); con.commit()

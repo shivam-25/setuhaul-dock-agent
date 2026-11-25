@@ -1,0 +1,79 @@
+{
+  "generated": "2026-11-25T14:18:57",
+  "concurrency": 20,
+  "repeats": 10,
+  "clock": "2026-08-04T10:05:00+05:30",
+  "runs": [
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    },
+    {
+      "pass": true,
+      "appointments": 1,
+      "winners": 1,
+      "lost_cleanly": 19,
+      "errors": 0
+    }
+  ],
+  "verdict": "PASS"
+}

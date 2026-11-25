@@ -1,0 +1,3766 @@
+{
+  "generated": "2026-11-25T15:09:26",
+  "cases": 44,
+  "results": [
+    {
+      "model": "apac.amazon.nova-micro-v1:0",
+      "n": 44,
+      "errors": 0,
+      "intent": 0.8409090909090909,
+      "eta": 0.9772727272727273,
+      "early": 0.9545454545454546,
+      "latest": 0.9772727272727273,
+      "all_four": 0.7727272727272727,
+      "p50_ms": 2657,
+      "p95_ms": 4409,
+      "in_tok": 46577,
+      "out_tok": 2754,
+      "rows": [
+        {
+          "id": "X01",
+          "msg": "Traffic after Shahpura. Reaching around 11:20.",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:20",
+            "early": "12:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "11:20",
+            "early": "12:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X02",
+          "msg": "I will be there at 13:45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X03",
+          "msg": "ETA 6:30 pm",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X04",
+          "msg": "Arriving 9am",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X05",
+          "msg": "Can I get a dock at 15:00? I reach 14:30",
+          "intent": false,
+          "eta": true,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "14:30",
+            "early": "15:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X06",
+          "msg": "Tyre repaired. I can reach 11:10. I need to le",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": false,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:10",
+            "early": null,
+            "latest": "1:30"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:10",
+            "early": null,
+            "latest": "13:30"
+          }
+        },
+        {
+          "id": "X07",
+          "msg": "Tyre changed, reaching 12:05, any slot after 1",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:05",
+            "early": "13:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:05",
+            "early": "13:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X08",
+          "msg": "ETA 19:45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "19:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "19:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X09",
+          "msg": "I am late by one hour.",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X10",
+          "msg": "90 minutes late",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X11",
+          "msg": "Running 2 hours behind",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X12",
+          "msg": "Delayed 45 mins due to traffic",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X13",
+          "msg": "half an hour late",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X14",
+          "msg": "late by 20 minutes",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "16:20",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "16:20",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X15",
+          "msg": "Driver expects arrival between 12:30 and 13:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X16",
+          "msg": "I will reach 12:45 or so, maybe 13:15",
+          "intent": true,
+          "eta": true,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:15",
+            "early": "anytime after 12:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:15",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X17",
+          "msg": "ETA 10:30 to 11:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X18",
+          "msg": "What slots are possible after 1 PM if I reach ",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:45",
+            "early": "13:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:45",
+            "early": "13:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X19",
+          "msg": "Just checking what is open this evening",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X20",
+          "msg": "Any dock free after 7?",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "17:00",
+            "early": "19:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "19:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X21",
+          "msg": "What are my options?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X22",
+          "msg": "Book me the earliest you have, I reach 11:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "BOOK",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X23",
+          "msg": "Please confirm 14:00 for me",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X24",
+          "msg": "Give me that 16:00 slot",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X25",
+          "msg": "Is my 12:00 appointment still on?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X26",
+          "msg": "Did the warehouse accept my slot?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X27",
+          "msg": "I am on schedule, no change",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X28",
+          "msg": "No delay, reaching as planned",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X29",
+          "msg": "I must finish by 18:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:00",
+            "early": null,
+            "latest": "18:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:00",
+            "early": null,
+            "latest": "18:00"
+          }
+        },
+        {
+          "id": "X30",
+          "msg": "Nothing before 14:00 please",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "12:00",
+            "early": "14:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:00",
+            "early": "14:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X31",
+          "msg": "I cannot do anything after 20:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "17:00",
+            "early": null,
+            "latest": "20:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "17:00",
+            "early": null,
+            "latest": "20:00"
+          }
+        },
+        {
+          "id": "X32",
+          "msg": "Breakdown near Kotputli. Reaching 15:30. Canno",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:30",
+            "early": null,
+            "latest": "19:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:30",
+            "early": null,
+            "latest": "19:00"
+          }
+        },
+        {
+          "id": "X33",
+          "msg": "Heavy rain, reaching 17:00, anything from 18 o",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "17:00",
+            "early": "18:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "18:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X34",
+          "msg": "Loading took long at origin, ETA 12:30, must l",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:30",
+            "early": null,
+            "latest": "15:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:30",
+            "early": null,
+            "latest": "15:00"
+          }
+        },
+        {
+          "id": "X35",
+          "msg": "Hello",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X36",
+          "msg": "ok",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X37",
+          "msg": "Thanks",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X38",
+          "msg": "I have a problem",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X39",
+          "msg": "trafic jam reachin 11 45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X40",
+          "msg": "will b late 1 hr",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X41",
+          "msg": "reachng arnd 9:15am",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:15",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:15",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X42",
+          "msg": "Can you give me dock 3 at 16:00?",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X43",
+          "msg": "My truck broke down. I do not know when I will",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X44",
+          "msg": "I reached already, where do I go?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        }
+      ]
+    },
+    {
+      "model": "apac.amazon.nova-lite-v1:0",
+      "n": 44,
+      "errors": 0,
+      "intent": 0.8181818181818182,
+      "eta": 0.9318181818181818,
+      "early": 1.0,
+      "latest": 1.0,
+      "all_four": 0.75,
+      "p50_ms": 942,
+      "p95_ms": 3948,
+      "in_tok": 46577,
+      "out_tok": 2842,
+      "rows": [
+        {
+          "id": "X01",
+          "msg": "Traffic after Shahpura. Reaching around 11:20.",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "11:20",
+            "early": "12:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "11:20",
+            "early": "12:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X02",
+          "msg": "I will be there at 13:45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X03",
+          "msg": "ETA 6:30 pm",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X04",
+          "msg": "Arriving 9am",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X05",
+          "msg": "Can I get a dock at 15:00? I reach 14:30",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "BOOK",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X06",
+          "msg": "Tyre repaired. I can reach 11:10. I need to le",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "11:10",
+            "early": null,
+            "latest": "13:30"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:10",
+            "early": null,
+            "latest": "13:30"
+          }
+        },
+        {
+          "id": "X07",
+          "msg": "Tyre changed, reaching 12:05, any slot after 1",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "12:05",
+            "early": "13:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:05",
+            "early": "13:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X08",
+          "msg": "ETA 19:45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "19:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "19:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X09",
+          "msg": "I am late by one hour.",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X10",
+          "msg": "90 minutes late",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X11",
+          "msg": "Running 2 hours behind",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X12",
+          "msg": "Delayed 45 mins due to traffic",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X13",
+          "msg": "half an hour late",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X14",
+          "msg": "late by 20 minutes",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "16:20",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "16:20",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X15",
+          "msg": "Driver expects arrival between 12:30 and 13:00",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X16",
+          "msg": "I will reach 12:45 or so, maybe 13:15",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:15",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:15",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X17",
+          "msg": "ETA 10:30 to 11:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X18",
+          "msg": "What slots are possible after 1 PM if I reach ",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:45",
+            "early": "13:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:45",
+            "early": "13:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X19",
+          "msg": "Just checking what is open this evening",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X20",
+          "msg": "Any dock free after 7?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "19:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "19:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X21",
+          "msg": "What are my options?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X22",
+          "msg": "Book me the earliest you have, I reach 11:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "BOOK",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X23",
+          "msg": "Please confirm 14:00 for me",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X24",
+          "msg": "Give me that 16:00 slot",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "16:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X25",
+          "msg": "Is my 12:00 appointment still on?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X26",
+          "msg": "Did the warehouse accept my slot?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X27",
+          "msg": "I am on schedule, no change",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X28",
+          "msg": "No delay, reaching as planned",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X29",
+          "msg": "I must finish by 18:00",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": "18:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:00",
+            "early": null,
+            "latest": "18:00"
+          }
+        },
+        {
+          "id": "X30",
+          "msg": "Nothing before 14:00 please",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:00",
+            "early": "14:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:00",
+            "early": "14:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X31",
+          "msg": "I cannot do anything after 20:00",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": null,
+            "latest": "20:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "17:00",
+            "early": null,
+            "latest": "20:00"
+          }
+        },
+        {
+          "id": "X32",
+          "msg": "Breakdown near Kotputli. Reaching 15:30. Canno",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:30",
+            "early": null,
+            "latest": "19:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:30",
+            "early": null,
+            "latest": "19:00"
+          }
+        },
+        {
+          "id": "X33",
+          "msg": "Heavy rain, reaching 17:00, anything from 18 o",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "18:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "18:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X34",
+          "msg": "Loading took long at origin, ETA 12:30, must l",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:30",
+            "early": null,
+            "latest": "15:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:30",
+            "early": null,
+            "latest": "15:00"
+          }
+        },
+        {
+          "id": "X35",
+          "msg": "Hello",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X36",
+          "msg": "ok",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X37",
+          "msg": "Thanks",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X38",
+          "msg": "I have a problem",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X39",
+          "msg": "trafic jam reachin 11 45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X40",
+          "msg": "will b late 1 hr",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X41",
+          "msg": "reachng arnd 9:15am",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:15",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:15",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X42",
+          "msg": "Can you give me dock 3 at 16:00?",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "16:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X43",
+          "msg": "My truck broke down. I do not know when I will",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X44",
+          "msg": "I reached already, where do I go?",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        }
+      ]
+    },
+    {
+      "model": "global.amazon.nova-2-lite-v1:0",
+      "n": 44,
+      "errors": 0,
+      "intent": 0.9545454545454546,
+      "eta": 0.5909090909090909,
+      "early": 0.8636363636363636,
+      "latest": 0.8863636363636364,
+      "all_four": 0.5227272727272727,
+      "p50_ms": 1166,
+      "p95_ms": 3836,
+      "in_tok": 66664,
+      "out_tok": 4242,
+      "rows": [
+        {
+          "id": "X01",
+          "msg": "Traffic after Shahpura. Reaching around 11:20.",
+          "intent": true,
+          "eta": false,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "11:20",
+            "early": "12:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X02",
+          "msg": "I will be there at 13:45",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X03",
+          "msg": "ETA 6:30 pm",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X04",
+          "msg": "Arriving 9am",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X05",
+          "msg": "Can I get a dock at 15:00? I reach 14:30",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X06",
+          "msg": "Tyre repaired. I can reach 11:10. I need to le",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": false,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:10",
+            "early": null,
+            "latest": "13:30"
+          }
+        },
+        {
+          "id": "X07",
+          "msg": "Tyre changed, reaching 12:05, any slot after 1",
+          "intent": true,
+          "eta": false,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:05",
+            "early": "13:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X08",
+          "msg": "ETA 19:45",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "19:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "19:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X09",
+          "msg": "I am late by one hour.",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X10",
+          "msg": "90 minutes late",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X11",
+          "msg": "Running 2 hours behind",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X12",
+          "msg": "Delayed 45 mins due to traffic",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X13",
+          "msg": "half an hour late",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X14",
+          "msg": "late by 20 minutes",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "16:20",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "16:20",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X15",
+          "msg": "Driver expects arrival between 12:30 and 13:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X16",
+          "msg": "I will reach 12:45 or so, maybe 13:15",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:15",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X17",
+          "msg": "ETA 10:30 to 11:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X18",
+          "msg": "What slots are possible after 1 PM if I reach ",
+          "intent": true,
+          "eta": false,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:45",
+            "early": "13:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X19",
+          "msg": "Just checking what is open this evening",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X20",
+          "msg": "Any dock free after 7?",
+          "intent": true,
+          "eta": true,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "19:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X21",
+          "msg": "What are my options?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X22",
+          "msg": "Book me the earliest you have, I reach 11:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "BOOK",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X23",
+          "msg": "Please confirm 14:00 for me",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X24",
+          "msg": "Give me that 16:00 slot",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X25",
+          "msg": "Is my 12:00 appointment still on?",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "12:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X26",
+          "msg": "Did the warehouse accept my slot?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X27",
+          "msg": "I am on schedule, no change",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X28",
+          "msg": "No delay, reaching as planned",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X29",
+          "msg": "I must finish by 18:00",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": false,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:00",
+            "early": null,
+            "latest": "18:00"
+          }
+        },
+        {
+          "id": "X30",
+          "msg": "Nothing before 14:00 please",
+          "intent": true,
+          "eta": true,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:00",
+            "early": "14:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X31",
+          "msg": "I cannot do anything after 20:00",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": false,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "20:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "17:00",
+            "early": null,
+            "latest": "20:00"
+          }
+        },
+        {
+          "id": "X32",
+          "msg": "Breakdown near Kotputli. Reaching 15:30. Canno",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": false,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:30",
+            "early": null,
+            "latest": "19:00"
+          }
+        },
+        {
+          "id": "X33",
+          "msg": "Heavy rain, reaching 17:00, anything from 18 o",
+          "intent": false,
+          "eta": false,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "18:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "18:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X34",
+          "msg": "Loading took long at origin, ETA 12:30, must l",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": false,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:30",
+            "early": null,
+            "latest": "15:00"
+          }
+        },
+        {
+          "id": "X35",
+          "msg": "Hello",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X36",
+          "msg": "ok",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X37",
+          "msg": "Thanks",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X38",
+          "msg": "I have a problem",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X39",
+          "msg": "trafic jam reachin 11 45",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X40",
+          "msg": "will b late 1 hr",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X41",
+          "msg": "reachng arnd 9:15am",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "08:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:15",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X42",
+          "msg": "Can you give me dock 3 at 16:00?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X43",
+          "msg": "My truck broke down. I do not know when I will",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X44",
+          "msg": "I reached already, where do I go?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        }
+      ]
+    },
+    {
+      "model": "apac.amazon.nova-pro-v1:0",
+      "n": 44,
+      "errors": 0,
+      "intent": 0.8636363636363636,
+      "eta": 0.9090909090909091,
+      "early": 0.9772727272727273,
+      "latest": 1.0,
+      "all_four": 0.75,
+      "p50_ms": 991,
+      "p95_ms": 1605,
+      "in_tok": 46577,
+      "out_tok": 2193,
+      "rows": [
+        {
+          "id": "X01",
+          "msg": "Traffic after Shahpura. Reaching around 11:20.",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:20",
+            "early": "12:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "11:20",
+            "early": "12:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X02",
+          "msg": "I will be there at 13:45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X03",
+          "msg": "ETA 6:30 pm",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "18:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X04",
+          "msg": "Arriving 9am",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X05",
+          "msg": "Can I get a dock at 15:00? I reach 14:30",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X06",
+          "msg": "Tyre repaired. I can reach 11:10. I need to le",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:10",
+            "early": null,
+            "latest": "13:30"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:10",
+            "early": null,
+            "latest": "13:30"
+          }
+        },
+        {
+          "id": "X07",
+          "msg": "Tyre changed, reaching 12:05, any slot after 1",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:05",
+            "early": "13:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:05",
+            "early": "13:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X08",
+          "msg": "ETA 19:45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "19:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "19:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X09",
+          "msg": "I am late by one hour.",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X10",
+          "msg": "90 minutes late",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X11",
+          "msg": "Running 2 hours behind",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X12",
+          "msg": "Delayed 45 mins due to traffic",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X13",
+          "msg": "half an hour late",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X14",
+          "msg": "late by 20 minutes",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "16:20",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "16:20",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X15",
+          "msg": "Driver expects arrival between 12:30 and 13:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X16",
+          "msg": "I will reach 12:45 or so, maybe 13:15",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:15",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "13:15",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X17",
+          "msg": "ETA 10:30 to 11:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X18",
+          "msg": "What slots are possible after 1 PM if I reach ",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": "13:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:45",
+            "early": "13:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X19",
+          "msg": "Just checking what is open this evening",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X20",
+          "msg": "Any dock free after 7?",
+          "intent": true,
+          "eta": true,
+          "early": false,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "07:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "19:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X21",
+          "msg": "What are my options?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X22",
+          "msg": "Book me the earliest you have, I reach 11:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "BOOK",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X23",
+          "msg": "Please confirm 14:00 for me",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "13:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X24",
+          "msg": "Give me that 16:00 slot",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "16:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X25",
+          "msg": "Is my 12:00 appointment still on?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X26",
+          "msg": "Did the warehouse accept my slot?",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "11:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X27",
+          "msg": "I am on schedule, no change",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X28",
+          "msg": "No delay, reaching as planned",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:30",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:30",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X29",
+          "msg": "I must finish by 18:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:00",
+            "early": null,
+            "latest": "18:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:00",
+            "early": null,
+            "latest": "18:00"
+          }
+        },
+        {
+          "id": "X30",
+          "msg": "Nothing before 14:00 please",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:00",
+            "early": "14:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "12:00",
+            "early": "14:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X31",
+          "msg": "I cannot do anything after 20:00",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "17:00",
+            "early": null,
+            "latest": "20:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "17:00",
+            "early": null,
+            "latest": "20:00"
+          }
+        },
+        {
+          "id": "X32",
+          "msg": "Breakdown near Kotputli. Reaching 15:30. Canno",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:30",
+            "early": null,
+            "latest": "19:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "15:30",
+            "early": null,
+            "latest": "19:00"
+          }
+        },
+        {
+          "id": "X33",
+          "msg": "Heavy rain, reaching 17:00, anything from 18 o",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "17:00",
+            "early": "18:00",
+            "latest": null
+          },
+          "want": {
+            "intent": "ASK_OPTIONS",
+            "eta": "17:00",
+            "early": "18:00",
+            "latest": null
+          }
+        },
+        {
+          "id": "X34",
+          "msg": "Loading took long at origin, ETA 12:30, must l",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:30",
+            "early": null,
+            "latest": "15:00"
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "12:30",
+            "early": null,
+            "latest": "15:00"
+          }
+        },
+        {
+          "id": "X35",
+          "msg": "Hello",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X36",
+          "msg": "ok",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X37",
+          "msg": "Thanks",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X38",
+          "msg": "I have a problem",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "UNKNOWN",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X39",
+          "msg": "trafic jam reachin 11 45",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "11:45",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X40",
+          "msg": "will b late 1 hr",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "14:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X41",
+          "msg": "reachng arnd 9:15am",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:15",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "09:15",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X42",
+          "msg": "Can you give me dock 3 at 16:00?",
+          "intent": true,
+          "eta": false,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "BOOK",
+            "eta": "16:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "BOOK",
+            "eta": "15:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X43",
+          "msg": "My truck broke down. I do not know when I will",
+          "intent": true,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": true,
+          "got": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "REPORT_DELAY",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        },
+        {
+          "id": "X44",
+          "msg": "I reached already, where do I go?",
+          "intent": false,
+          "eta": true,
+          "early": true,
+          "latest": true,
+          "ok": false,
+          "got": {
+            "intent": "ASK_OPTIONS",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          },
+          "want": {
+            "intent": "CHECK_STATUS",
+            "eta": "10:00",
+            "early": null,
+            "latest": null
+          }
+        }
+      ]
+    }
+  ]
+}

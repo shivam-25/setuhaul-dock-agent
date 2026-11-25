@@ -53,5 +53,23 @@ Proven by running it: no double booking under 20-way concurrency, 10 runs out of
 case produces a complete hand-off record and detects that the facility's configured escalation
 address matches no contact on file; a duplicate message replays instead of booking twice.
 
-Not yet measured: extraction accuracy against a labelled set, cost per resolved exception, and the
-model comparison. Those are stated as pending rather than estimated.
+Also measured since: feasibility against an independently written SQL oracle (precision 1.0000,
+recall 1.0000 over 72 cases, 1584 true positives, no false positives or negatives), and extraction
+across four Nova models on 44 labelled cases, which is what chose nova-micro on BOOK precision
+1.000. See `docs/07-EVALUATION.md`.
+
+**Not proven by the deployment.** Each Lambda container keeps its own SQLite file in `/tmp`, and
+two of them answer alternate requests, so the dock board and the audit trail can disagree between
+refreshes. Reserved concurrency does not prevent this — it caps simultaneous executions, not the
+number of warm environments, and measurement showed `audit_rows` moving 1 to 4 with no writes in
+between. The integrity proof is `scripts/race_test.py` against a single database.
+`docs/06-AWS-RUNBOOK.md` Part E has the measurement and the two fixes.
+
+Still not measured: cost per resolved exception in money, accuracy on Hindi or transliterated
+messages, and whether coordinators accept the automation rate in practice.
+
+## Demo
+
+A screen recording of the deployed stack is at `docs/demo/setuhaul-dock-desk-demo.gif`, with stills
+from the same run in `docs/screenshots/live-*.jpg`. Both were captured by driving
+<https://setuhaul-dock-desk.vercel.app> against the Lambda, not a local build.

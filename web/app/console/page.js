@@ -126,15 +126,18 @@ export default function Console() {
         <p className="eyebrow">audit trail</p>
         <h2 style={{ marginBottom: 10 }}>Append-only decision log</h2>
         <table><thead><tr><th>when</th><th>box</th><th>decision</th><th>shipment</th>
-          <th>thread</th><th>request</th></tr></thead>
+          <th>thread</th><th>detail</th></tr></thead>
           <tbody>{log.map((a) => <tr key={a.audit_id}>
-            <td className="mono">{hm(a.decided_at || a.created_at)}</td>
+            <td className="mono">{hm(a.ts)}</td>
             <td className="mono">{a.box}</td>
             <td><span className={`tag ${a.decision === "escalated" || a.decision === "refused_injection"
                    ? "t-stop" : a.decision === "auto" ? "t-ok" : "t-hold"}`}>{a.decision}</span></td>
             <td className="mono">{a.shipment_id || ""}</td>
             <td className="mono">{a.thread_id || ""}</td>
-            <td className="mono" style={{ fontSize: 10.5, color: "var(--muted)" }}>{a.request_id}</td>
+            <td className="mono" style={{ fontSize: 10.5, color: "var(--muted)",
+                                          maxWidth: 320, overflow: "hidden",
+                                          textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                title={a.detail_json || ""}>{a.detail_json || a.request_id}</td>
           </tr>)}</tbody></table>
         {log.length === 0 && <p style={{ fontSize: 13, color: "var(--muted)" }}>
           No decisions yet. Send a driver message first.</p>}

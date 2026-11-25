@@ -60,17 +60,15 @@ export default function Driver() {
   }
 
   return (
-    <main className="wrap" style={{ paddingBlock: 22, display: "grid", gap: 18,
-                                    gridTemplateColumns: "minmax(0,1fr) minmax(0,340px)" }}>
-      <section style={{ display: "flex", flexDirection: "column", gap: 13, minWidth: 0 }}>
+    <main className="wrap split">
+      <section className="chat">
         <div>
           <p className="eyebrow">driver channel</p>
           <h1>Dock desk</h1>
         </div>
 
-        <div className="card" style={{ display: "flex", gap: 10, flexWrap: "wrap",
-                                       alignItems: "flex-end" }}>
-          <label style={{ flex: "1 1 150px", minWidth: 0 }}>
+        <div className="card controls">
+          <label>
             <span className="eyebrow">driver</span>
             <select value={sel} onChange={(e) => {
               setSel(e.target.value);
@@ -82,7 +80,7 @@ export default function Driver() {
               </option>)}
             </select>
           </label>
-          <label style={{ flex: "1 1 150px", minWidth: 0 }}>
+          <label>
             <span className="eyebrow">shipment</span>
             <select value={shp} onChange={(e) => setShp(e.target.value)}>
               <option value="">— let the system resolve it —</option>
@@ -128,7 +126,7 @@ export default function Driver() {
         </div>
       </section>
 
-      <aside style={{ display: "flex", flexDirection: "column", gap: 9, minWidth: 0 }}>
+      <aside className="ladder">
         <p className="eyebrow">the ladder</p>
         {QUICK.map((q) => (
           <button key={q.t} onClick={() => go(q.t, q)} disabled={busy}

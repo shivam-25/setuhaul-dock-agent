@@ -24,9 +24,15 @@ _brt = _session.client("bedrock-runtime",
                                      read_timeout=30))
 
 # ---------------------------------------------------------------- box 2: screen
+# The verb and its object, with anything short in between, rather than one fixed phrasing.
+# The first version matched "ignore previous instructions" but not "ignore YOUR instructions",
+# which is a one-word edit. This is still a keyword screen and still fails open by design:
+# anything it misses meets C1-C9 downstream, which is where the real guarantee lives.
 _INJECTION = re.compile(
-    r"ignore (?:all |the )?(?:previous|prior|above) instructions|disregard (?:your|the) (?:rules|instructions)"
-    r"|you are now|system prompt|act as (?:an? )?admin|override (?:the )?(?:rules|policy)"
+    r"\b(?:ignore|disregard|forget|override|bypass|skip)\b[^.]{0,40}?"
+    r"\b(?:instructions?|rules?|polic(?:y|ies)|prompt|guidelines?|constraints?|checks?)\b"
+    r"|\byou are now\b|\bsystem prompt\b|\bact as (?:an? )?(?:admin|administrator|developer|system)\b"
+    r"|\b(?:new|updated|revised) instructions\b"
     r"|grant me|give me (?:any|the) slot (?:anyway|regardless)|pretend", re.I)
 _PII = [(re.compile(r"\+?\d[\d\s-]{8,}\d"), "[phone]"),
         (re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]+\b"), "[email]")]
@@ -160,6 +166,11 @@ def output_checks(reply: str, options: list, status: str, held_slot_labels: set)
     if re.search(r"\[phone\]|\[email\]", reply): fails.append("C7 echoed masked personal data")
     if _OVERCLAIM.search(reply):
         fails.append("C8 claimed availability beyond the options given")
+    # A dock code with no time cannot be acted on. If we offered slots, the reply must carry
+    # every distinct start time we offered.
+    for st in {f"{o.start:%H:%M}" for o in options}:
+        if st not in reply:
+            fails.append(f"C9 offered a slot starting {st} without naming the time")
     return fails
 
 def draft_reply(context: str, options: list, status: str) -> tuple[str, int, list[str]]:
@@ -340,12 +351,20 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
     if intent != "BOOK":
         box(9, "hold", "none taken - the driver is asking, not booking")
         status = "NOT_RESERVED"
-        ctxt = (f"Offer the driver exactly the {len(shown)} slots in OPTIONS and nothing else. "
-                f"NONE of these {len(shown)} is reserved - say so plainly, once, for them "
-                f"together, and tell the driver to reply with the one they want so we can hold "
-                f"it. Do not single any one out as unreserved, because that implies the others "
-                f"are. These are a shortlist, not the whole schedule: never say or imply that "
-                f"all slots, every slot, or the dock board generally is free or open.")
+        # What is true: these are the earliest-starting chains that passed F1-F10, not the
+        # whole board. Say that, rather than leaving the model to invent a quantifier.
+        ctxt = (f"These are the {len(shown)} EARLIEST dock slots that fit this driver's load - "
+                f"its dock type, its unload time and its deadline. Tell the driver that in one "
+                f"short sentence: these are the earliest that fit. Other slots exist later in "
+                f"the day; these are the soonest. Give each one as dock code AND both times, "
+                f"exactly as written in OPTIONS - a dock code with no time is useless to a "
+                f"driver. Write 'your load', never the internal shipment code. "
+                f"NONE of these {len(shown)} is reserved yet - write that as 'none of these "
+                f"is reserved', never as 'all slots are not reserved' - "
+                f"say so once, for them together, and ask the driver to reply with the one they "
+                f"want so we can hold it. Do not single any one out as unreserved, because that "
+                f"implies the others are. Never say or imply that all slots, every slot, or the "
+                f"dock board generally is free or open - that is false and it will be rejected.")
     else:
         best = shown[0]
         got = claim(con, best.slot_ids, thread_id, shipment_id, now); con.commit()

@@ -50,6 +50,24 @@ every code and time it named was in OPTIONS.
 
 Two causes, both mine. The situation string said *"These slots are currently free"*, and the model
 moved the determiner to *"All"*. And `output_checks` had no rule against a quantified availability
-claim. Fixed in both places: the situation string now states that OPTIONS is a shortlist and not
-the schedule, and **C8** rejects a reply that calls all or every slot free. The oracle eval
-(1.0000 / 1.0000) and the race test (10/10) still pass.
+claim.
+
+Blocking the sentence was not enough — a rejected reply is routed to a coordinator, which is safe
+but is not an answer. So the situation string now states the claim that is *true*: `rank_options`
+sorts by start time, so `ok[:3]` are the **earliest** chains that fit, and the reply says exactly
+that. Three checks were added or widened:
+
+- **C8** rejects a reply that calls all or every slot free or open.
+- **C9** rejects a reply that names an offered dock without its time. A first pass at the wording
+  produced *"D2, D4, and D1"* with no times at all — correct, and useless to a driver.
+- **`_INJECTION`** was matching `ignore (previous|prior|above) instructions` but not *"ignore YOUR
+  instructions"* — a one-word edit defeated it. It now matches the verb and its object with
+  anything short in between. It remains a keyword screen and still fails open: the un-screened
+  message fell through to the ambiguity question and booked nothing, because the guarantee lives
+  in C1–C9, not in the screen.
+
+Verified against the deployed stack with eight genuinely fresh generations — the first attempt at
+this measured nothing, because `dedupe_key` is keyed on the date, so re-sending the same text
+replayed the stored reply in 1 ms instead of calling the model. All eight report `37 of 79`, name
+all three slots with times, and pass every check. Oracle eval 1.0000 / 1.0000 and race test 10/10
+still pass.

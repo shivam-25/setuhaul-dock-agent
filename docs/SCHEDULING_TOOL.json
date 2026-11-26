@@ -1,0 +1,747 @@
+{
+  "facility": "FAC-JAI-01",
+  "as_of": "2026-08-04T10:05:00",
+  "jobs": 19,
+  "docks": 6,
+  "objective": "less waiting, fewer missed appointments, fewer changes to a schedule already told to a driver",
+  "rules": {
+    "fcfs": {
+      "summary": {
+        "scheduled": 18,
+        "total_wait_min": 370.0,
+        "weighted_wait": 930.0,
+        "missed_appointments": 10,
+        "total_late_min": 595.0,
+        "promises_broken": 7,
+        "makespan_min": 565.0
+      },
+      "sequence": [
+        {
+          "shipment": "SHP1002",
+          "dock": "D2",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T09:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": true
+        },
+        {
+          "shipment": "SHP1003",
+          "dock": "D1",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T10:50:00",
+          "wait_min": 105.0,
+          "late_min": 50.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1005",
+          "dock": "D2",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:20:00",
+          "wait_min": 60.0,
+          "late_min": 80.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1004",
+          "dock": "D3",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:05:00",
+          "wait_min": 40.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1008",
+          "dock": "D4",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T10:55:00",
+          "wait_min": 20.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1010",
+          "dock": "D5",
+          "start": "2026-08-04T10:55:00",
+          "end": "2026-08-04T11:50:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1011",
+          "dock": "D6",
+          "start": "2026-08-04T10:45:00",
+          "end": "2026-08-04T12:15:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1007",
+          "dock": "D1",
+          "start": "2026-08-04T10:50:00",
+          "end": "2026-08-04T11:50:00",
+          "wait_min": 60.0,
+          "late_min": 50.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1009",
+          "dock": "D4",
+          "start": "2026-08-04T10:55:00",
+          "end": "2026-08-04T12:10:00",
+          "wait_min": 5.0,
+          "late_min": 10.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1012",
+          "dock": "D3",
+          "start": "2026-08-04T11:10:00",
+          "end": "2026-08-04T11:55:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1006",
+          "dock": "D2",
+          "start": "2026-08-04T11:20:00",
+          "end": "2026-08-04T12:05:00",
+          "wait_min": 0.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1014",
+          "dock": "D1",
+          "start": "2026-08-04T11:50:00",
+          "end": "2026-08-04T13:05:00",
+          "wait_min": 25.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1015",
+          "dock": "D5",
+          "start": "2026-08-04T18:30:00",
+          "end": "2026-08-04T19:30:00",
+          "wait_min": 0.0,
+          "late_min": 90.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1013",
+          "dock": "D3",
+          "start": "2026-08-04T11:55:00",
+          "end": "2026-08-04T12:55:00",
+          "wait_min": 25.0,
+          "late_min": 55.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1018",
+          "dock": "D2",
+          "start": "2026-08-04T12:05:00",
+          "end": "2026-08-04T12:50:00",
+          "wait_min": 15.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1017",
+          "dock": "D4",
+          "start": "2026-08-04T13:15:00",
+          "end": "2026-08-04T14:05:00",
+          "wait_min": 0.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1016",
+          "dock": "D6",
+          "start": "2026-08-04T12:15:00",
+          "end": "2026-08-04T13:45:00",
+          "wait_min": 15.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1019",
+          "dock": "D2",
+          "start": "2026-08-04T16:00:00",
+          "end": "2026-08-04T17:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1020",
+          "dock": "D3",
+          "start": "2026-08-04T18:00:00",
+          "end": "2026-08-04T19:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        }
+      ]
+    },
+    "edd": {
+      "summary": {
+        "scheduled": 18,
+        "total_wait_min": 385.0,
+        "weighted_wait": 900.0,
+        "missed_appointments": 10,
+        "total_late_min": 550.0,
+        "promises_broken": 7,
+        "makespan_min": 565.0
+      },
+      "sequence": [
+        {
+          "shipment": "SHP1002",
+          "dock": "D2",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T09:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": true
+        },
+        {
+          "shipment": "SHP1003",
+          "dock": "D1",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T10:50:00",
+          "wait_min": 105.0,
+          "late_min": 50.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1004",
+          "dock": "D2",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:05:00",
+          "wait_min": 40.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1005",
+          "dock": "D3",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:20:00",
+          "wait_min": 60.0,
+          "late_min": 80.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1007",
+          "dock": "D4",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:05:00",
+          "wait_min": 15.0,
+          "late_min": 5.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1010",
+          "dock": "D5",
+          "start": "2026-08-04T10:55:00",
+          "end": "2026-08-04T11:50:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1011",
+          "dock": "D6",
+          "start": "2026-08-04T10:45:00",
+          "end": "2026-08-04T12:15:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1009",
+          "dock": "D1",
+          "start": "2026-08-04T10:50:00",
+          "end": "2026-08-04T12:05:00",
+          "wait_min": 0.0,
+          "late_min": 5.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1008",
+          "dock": "D2",
+          "start": "2026-08-04T11:05:00",
+          "end": "2026-08-04T11:55:00",
+          "wait_min": 80.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1012",
+          "dock": "D4",
+          "start": "2026-08-04T11:10:00",
+          "end": "2026-08-04T11:55:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1006",
+          "dock": "D3",
+          "start": "2026-08-04T11:20:00",
+          "end": "2026-08-04T12:05:00",
+          "wait_min": 0.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1015",
+          "dock": "D5",
+          "start": "2026-08-04T18:30:00",
+          "end": "2026-08-04T19:30:00",
+          "wait_min": 0.0,
+          "late_min": 90.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1013",
+          "dock": "D2",
+          "start": "2026-08-04T11:55:00",
+          "end": "2026-08-04T12:55:00",
+          "wait_min": 25.0,
+          "late_min": 55.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1014",
+          "dock": "D4",
+          "start": "2026-08-04T11:55:00",
+          "end": "2026-08-04T13:10:00",
+          "wait_min": 30.0,
+          "late_min": 70.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1018",
+          "dock": "D1",
+          "start": "2026-08-04T12:05:00",
+          "end": "2026-08-04T12:50:00",
+          "wait_min": 15.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1017",
+          "dock": "D3",
+          "start": "2026-08-04T13:15:00",
+          "end": "2026-08-04T14:05:00",
+          "wait_min": 0.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1016",
+          "dock": "D6",
+          "start": "2026-08-04T12:15:00",
+          "end": "2026-08-04T13:45:00",
+          "wait_min": 15.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1019",
+          "dock": "D1",
+          "start": "2026-08-04T16:00:00",
+          "end": "2026-08-04T17:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1020",
+          "dock": "D2",
+          "start": "2026-08-04T18:00:00",
+          "end": "2026-08-04T19:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        }
+      ]
+    },
+    "spt": {
+      "summary": {
+        "scheduled": 18,
+        "total_wait_min": 385.0,
+        "weighted_wait": 1130.0,
+        "missed_appointments": 10,
+        "total_late_min": 620.0,
+        "promises_broken": 7,
+        "makespan_min": 565.0
+      },
+      "sequence": [
+        {
+          "shipment": "SHP1002",
+          "dock": "D2",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T09:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": true
+        },
+        {
+          "shipment": "SHP1003",
+          "dock": "D1",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T10:50:00",
+          "wait_min": 105.0,
+          "late_min": 50.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1008",
+          "dock": "D2",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T10:55:00",
+          "wait_min": 20.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1007",
+          "dock": "D3",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:05:00",
+          "wait_min": 15.0,
+          "late_min": 5.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1004",
+          "dock": "D4",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:05:00",
+          "wait_min": 40.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1010",
+          "dock": "D5",
+          "start": "2026-08-04T10:55:00",
+          "end": "2026-08-04T11:50:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1011",
+          "dock": "D6",
+          "start": "2026-08-04T10:45:00",
+          "end": "2026-08-04T12:15:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1009",
+          "dock": "D1",
+          "start": "2026-08-04T10:50:00",
+          "end": "2026-08-04T12:05:00",
+          "wait_min": 0.0,
+          "late_min": 5.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1005",
+          "dock": "D2",
+          "start": "2026-08-04T10:55:00",
+          "end": "2026-08-04T12:10:00",
+          "wait_min": 110.0,
+          "late_min": 130.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1012",
+          "dock": "D3",
+          "start": "2026-08-04T11:10:00",
+          "end": "2026-08-04T11:55:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1006",
+          "dock": "D4",
+          "start": "2026-08-04T11:20:00",
+          "end": "2026-08-04T12:05:00",
+          "wait_min": 0.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1015",
+          "dock": "D5",
+          "start": "2026-08-04T18:30:00",
+          "end": "2026-08-04T19:30:00",
+          "wait_min": 0.0,
+          "late_min": 90.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1018",
+          "dock": "D3",
+          "start": "2026-08-04T11:55:00",
+          "end": "2026-08-04T12:40:00",
+          "wait_min": 5.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1013",
+          "dock": "D1",
+          "start": "2026-08-04T12:05:00",
+          "end": "2026-08-04T13:05:00",
+          "wait_min": 35.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1014",
+          "dock": "D4",
+          "start": "2026-08-04T12:05:00",
+          "end": "2026-08-04T13:20:00",
+          "wait_min": 40.0,
+          "late_min": 80.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1017",
+          "dock": "D2",
+          "start": "2026-08-04T13:15:00",
+          "end": "2026-08-04T14:05:00",
+          "wait_min": 0.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1016",
+          "dock": "D6",
+          "start": "2026-08-04T12:15:00",
+          "end": "2026-08-04T13:45:00",
+          "wait_min": 15.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1019",
+          "dock": "D3",
+          "start": "2026-08-04T16:00:00",
+          "end": "2026-08-04T17:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1020",
+          "dock": "D1",
+          "start": "2026-08-04T18:00:00",
+          "end": "2026-08-04T19:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        }
+      ]
+    },
+    "weighted": {
+      "summary": {
+        "scheduled": 18,
+        "total_wait_min": 370.0,
+        "weighted_wait": 885.0,
+        "missed_appointments": 10,
+        "total_late_min": 550.0,
+        "promises_broken": 7,
+        "makespan_min": 565.0
+      },
+      "sequence": [
+        {
+          "shipment": "SHP1002",
+          "dock": "D2",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T09:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": true
+        },
+        {
+          "shipment": "SHP1005",
+          "dock": "D1",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:20:00",
+          "wait_min": 60.0,
+          "late_min": 80.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1004",
+          "dock": "D2",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:05:00",
+          "wait_min": 40.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1003",
+          "dock": "D3",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T10:50:00",
+          "wait_min": 105.0,
+          "late_min": 50.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1007",
+          "dock": "D4",
+          "start": "2026-08-04T10:05:00",
+          "end": "2026-08-04T11:05:00",
+          "wait_min": 15.0,
+          "late_min": 5.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1010",
+          "dock": "D5",
+          "start": "2026-08-04T10:55:00",
+          "end": "2026-08-04T11:50:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1011",
+          "dock": "D6",
+          "start": "2026-08-04T10:45:00",
+          "end": "2026-08-04T12:15:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1008",
+          "dock": "D3",
+          "start": "2026-08-04T10:50:00",
+          "end": "2026-08-04T11:40:00",
+          "wait_min": 65.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1009",
+          "dock": "D2",
+          "start": "2026-08-04T11:05:00",
+          "end": "2026-08-04T12:20:00",
+          "wait_min": 15.0,
+          "late_min": 20.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1012",
+          "dock": "D4",
+          "start": "2026-08-04T11:10:00",
+          "end": "2026-08-04T11:55:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1006",
+          "dock": "D1",
+          "start": "2026-08-04T11:20:00",
+          "end": "2026-08-04T12:05:00",
+          "wait_min": 0.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1014",
+          "dock": "D3",
+          "start": "2026-08-04T11:40:00",
+          "end": "2026-08-04T12:55:00",
+          "wait_min": 15.0,
+          "late_min": 55.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1015",
+          "dock": "D5",
+          "start": "2026-08-04T18:30:00",
+          "end": "2026-08-04T19:30:00",
+          "wait_min": 0.0,
+          "late_min": 90.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1013",
+          "dock": "D4",
+          "start": "2026-08-04T11:55:00",
+          "end": "2026-08-04T12:55:00",
+          "wait_min": 25.0,
+          "late_min": 55.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1018",
+          "dock": "D1",
+          "start": "2026-08-04T12:05:00",
+          "end": "2026-08-04T12:50:00",
+          "wait_min": 15.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1016",
+          "dock": "D6",
+          "start": "2026-08-04T12:15:00",
+          "end": "2026-08-04T13:45:00",
+          "wait_min": 15.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1017",
+          "dock": "D2",
+          "start": "2026-08-04T13:15:00",
+          "end": "2026-08-04T14:05:00",
+          "wait_min": 0.0,
+          "late_min": 65.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1019",
+          "dock": "D1",
+          "start": "2026-08-04T16:00:00",
+          "end": "2026-08-04T17:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        },
+        {
+          "shipment": "SHP1020",
+          "dock": "D3",
+          "start": "2026-08-04T18:00:00",
+          "end": "2026-08-04T19:00:00",
+          "wait_min": 0.0,
+          "late_min": 0.0,
+          "fixed": false
+        }
+      ]
+    }
+  },
+  "verdict": "Best rule by weighted waiting: weighted (885.0), against first-come-first-served at 930.0 - a gain of 4.8%.\nEvery rule misses 10 appointments and breaks 7 promises, and the makespan is identical at 565.0 minutes.\nReading: the ordering rule is NOT the binding constraint here - the facility is simply\noversubscribed in this window, and no sequence invents a dock. A smarter rule recovers a\nfew percent of weighted waiting; it does not recover a missed appointment. That is the\ncase for buying dock hours rather than for buying constraint programming, and it is why\nCP-SAT is not used: there is no measured gap for it to close.",
+  "best_rule": "weighted"
+}

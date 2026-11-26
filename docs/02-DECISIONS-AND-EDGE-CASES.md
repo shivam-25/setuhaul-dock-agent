@@ -147,13 +147,24 @@ then changes to a schedule already told to a driver (churn).
 Start with a transparent dispatch rule; CP-SAT only if the rule is beaten measurably.
 
 ### D9. Stale options, cancellations, duplicates, retries
-  duplicates  -> dedupe_key = driver-shipment-YYYYMMDD-sha1(normalised text)[:8].
-                 NOTE: keyed on the DAY, not the minute, and it ignores thread_id. So the
-                 same wording from the same driver about the same shipment replays for the
-                 rest of that day, across threads. That is right for a retry and wrong for
-                 a driver who genuinely sends the same short message twice - a known
-                 limitation, recorded rather than hidden.
-                 THR009 is a byte-identical retry of THR001: suppress, do not re-process.
+  duplicates  -> dedupe_key = driver-thread-shipment-sha1(normalised text)[:8], replayed
+                 only while the stored reply is younger than REPLAY_WINDOW_S (120s),
+                 compared against handled_at.
+                 This replaces driver-shipment-YYYYMMDD-sha1(text), which was wrong twice.
+                 It ignored thread_id, so two conversations collided whenever the driver
+                 had not named a shipment yet - the L7 case, a driver with two active trips
+                 writing "I am running late" - and the second conversation was answered
+                 about the other truck. And a calendar day is not a retry window: dock
+                 availability turns over in minutes, so the same question at 16:00 replayed
+                 the 10:05 shortlist, naming slots taken hours earlier.
+                 What this gives up, deliberately: a duplicate arriving in a NEW thread -
+                 the shape of DEFECT-4, where EXC009 repeats EXC001 - is no longer
+                 suppressed here. Box 3 cannot distinguish a re-sent message from a new
+                 question about a different truck. Guessing wrong makes a wrong promise;
+                 failing to suppress costs one model call and then meets
+                 ux_active_appointment_per_slot, which cannot be fooled. Suppress only what
+                 is provably a retry and let the constraints carry correctness.
+                 Proven by scripts/dedupe_test.py (14 assertions) and scenarios L5 / L5b.
   retries     -> every write carries an idempotency key = dedupe_key + action
   stale offer -> revalidated at commit; if lost, re-offer immediately with reason
   cancelled   -> SHP1019 is CANCELLED: answer the question, offer nothing

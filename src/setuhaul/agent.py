@@ -48,10 +48,54 @@ def screen(text: str) -> tuple[str, list[str]]:
     return masked, flags
 
 # ---------------------------------------------------------------- box 3: dedupe
-def dedupe_key(driver_id, shipment_id, text, now) -> str:
+# A retry is the same words, in the same conversation, moments later. The old key got two
+# of those three wrong, and both errors pointed the same way: towards answering a real
+# question with a stored reply.
+#
+#   driver + shipment + the DAY + sha1(text)
+#
+# It ignored thread_id, so two separate conversations collided whenever the driver had not
+# yet named a shipment - exactly the L7 case, a driver with two active trips who writes "I
+# am running late". Both turns hash to ...-UNKNOWN-..., and the second conversation was
+# answered with the first one's reply, about the other truck.
+#
+# And a calendar day is not a retry window. Dock availability turns over in minutes, so
+# "what are my options?" asked again at 16:00 replayed the 10:05 answer, naming slots that
+# had been taken hours earlier. A stale promise is the one failure this system exists to
+# prevent, and box 3 was manufacturing them.
+#
+# So thread_id is in the key, the date is out, and the window is an explicit comparison on
+# handled_at. Note what this gives up: a duplicate that arrives in a NEW thread - the shape
+# of audit DEFECT-4, where EXC009 repeats EXC001 - is no longer suppressed here. That is
+# deliberate. Box 3 cannot tell a re-sent message from a new question about a different
+# truck, and guessing wrong means a wrong promise, whereas failing to suppress costs one
+# model call and lands on ux_active_appointment_per_slot, which cannot be fooled. Suppress
+# only what is provably a retry; let the constraints carry correctness.
+REPLAY_WINDOW_S = 120
+
+def dedupe_key(driver_id, shipment_id, text, thread_id=None) -> str:
     import hashlib
     h = hashlib.sha1(re.sub(r"\s+", " ", text.strip().lower()).encode()).hexdigest()[:8]
-    return f"{driver_id}-{shipment_id or 'UNKNOWN'}-{now:%Y%m%d}-{h}"
+    return f"{driver_id}-{thread_id or 'NOTHREAD'}-{shipment_id or 'UNKNOWN'}-{h}"
+
+def _age_s(handled_at, now):
+    """Seconds between a stored reply and the clock, or None if that cannot be known.
+
+    handled_at is TEXT in the DDL on both engines, so it arrives as a string - but a
+    timestamp column added later would arrive as a datetime, and a window that silently
+    stops working is worse than one that never worked. Both shapes are accepted, and
+    anything else returns None, which answers the question again rather than guessing.
+    """
+    try:
+        when = handled_at if hasattr(handled_at, "tzinfo") else dt_(str(handled_at))
+        return (now - when).total_seconds()
+    except Exception:
+        return None
+
+def _replayable(handled_at, now) -> bool:
+    """True only while a stored reply is still the honest answer to the same words."""
+    age = _age_s(handled_at, now)
+    return age is not None and 0 <= age <= REPLAY_WINDOW_S
 
 # ---------------------------------------------------------------- box 4: extract
 _TOOL = {"toolSpec": {"name": "record_driver_facts",
@@ -412,16 +456,30 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
 
     masked, flags = screen(message)
     box(2, "screen", "clean" if not flags else ", ".join(flags))
-    dk = dedupe_key(driver_id, shipment_id, message, now)
-    prior = con.execute("SELECT request_id,route,reply FROM request_log WHERE dedupe_key=?",
-                        (dk,)).fetchone()
-    if prior:
-        box(3, "dedupe", f"DUPLICATE of {prior[0]} - replayed, nothing re-booked")
+    dk = dedupe_key(driver_id, shipment_id, message, thread_id)
+    prior = con.execute("SELECT request_id,route,reply,handled_at FROM request_log "
+                        "WHERE dedupe_key=?", (dk,)).fetchone()
+    if prior and _replayable(prior[3], now):
+        age = int(_age_s(prior[3], now) or 0)
+        box(3, "dedupe", f"DUPLICATE of {prior[0]} {age}s ago - replayed, nothing re-booked")
         rec["route"], rec["reply"], rec["duplicate_of"] = prior[1], prior[2], prior[0]
         audit(con, request_id=rid, box="3", decision="duplicate_replayed",
-              thread_id=thread_id, shipment_id=shipment_id, detail={"dedupe_key": dk}, now=now)
+              thread_id=thread_id, shipment_id=shipment_id,
+              detail={"dedupe_key": dk, "age_s": age, "window_s": REPLAY_WINDOW_S}, now=now)
         rec["ms"] = int((time.time() - rec["t0"]) * 1000); return rec
-    box(3, "dedupe", "first time seen")
+    if prior:
+        # The same words in the same thread, but long enough ago that the schedule has
+        # moved. This is a driver asking again, not a client retrying, and it deserves an
+        # answer computed now. The old row goes, because the key is the primary key and
+        # the fresh answer is the one worth replaying from here on.
+        box(3, "dedupe", f"seen at {str(prior[3])[11:16]}, outside the "
+                         f"{REPLAY_WINDOW_S}s replay window - answering again")
+        audit(con, request_id=rid, box="3", decision="replay_window_expired",
+              thread_id=thread_id, shipment_id=shipment_id,
+              detail={"dedupe_key": dk, "prior": prior[0], "handled_at": str(prior[3])}, now=now)
+        con.execute("DELETE FROM request_log WHERE dedupe_key=?", (dk,)); con.commit()
+    else:
+        box(3, "dedupe", "first time seen")
     if "G1_injection_attempt" in flags:
         rec["route"] = "human"; rec["reply"] = ("I can't action that request here. I've passed this "
             "conversation to a SetuHaul coordinator, who will reply shortly.")

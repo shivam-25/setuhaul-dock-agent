@@ -17,7 +17,7 @@ Free text never reaches the capacity lane. A model output never commits.
 
   1  ingest        channel in, thread bound, raw message stored
   2  screen        PII + prompt-injection guardrail            (G1)
-  3  dedupe        dedupe_key; THR009-style retry suppressed   (G2)
+  3  dedupe        same words, same thread, within 120s        (G2)
   4  extract       ONE structured call: intent/ETA/constraints (G3)
   5  resolve       driver -> shipment; >1 active = ASK          (G4)
   6  eta           D3 rule -> effective_eta + confidence buffer (G5)

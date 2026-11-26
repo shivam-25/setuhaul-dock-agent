@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-26T10:47:23",
+  "generated": "2026-11-26T17:28:19",
   "cases": 44,
   "results": [
     {
@@ -11,8 +11,8 @@
       "early": 1.0,
       "latest": 0.9772727272727273,
       "all_four": 0.8181818181818182,
-      "p50_ms": 927,
-      "p95_ms": 3912,
+      "p50_ms": 931,
+      "p95_ms": 3907,
       "in_tok": 50933,
       "out_tok": 2668,
       "rows": [
@@ -953,10 +953,10 @@
       "early": 1.0,
       "latest": 1.0,
       "all_four": 0.6136363636363636,
-      "p50_ms": 979,
-      "p95_ms": 3717,
+      "p50_ms": 1052,
+      "p95_ms": 4209,
       "in_tok": 50933,
-      "out_tok": 2577,
+      "out_tok": 2589,
       "rows": [
         {
           "id": "X01",
@@ -1325,7 +1325,7 @@
           "ok": false,
           "got": {
             "intent": "ASK_OPTIONS",
-            "eta": "13:00",
+            "eta": "12:00",
             "early": "13:00",
             "latest": null
           },
@@ -1895,10 +1895,10 @@
       "early": 0.8636363636363636,
       "latest": 0.8863636363636364,
       "all_four": 0.4318181818181818,
-      "p50_ms": 1193,
-      "p95_ms": 3851,
+      "p50_ms": 1293,
+      "p95_ms": 2995,
       "in_tok": 70888,
-      "out_tok": 4791,
+      "out_tok": 4816,
       "rows": [
         {
           "id": "X01",
@@ -2836,11 +2836,11 @@
       "eta": 0.9090909090909091,
       "early": 0.9772727272727273,
       "latest": 1.0,
-      "all_four": 0.75,
-      "p50_ms": 931,
-      "p95_ms": 1569,
+      "all_four": 0.8181818181818182,
+      "p50_ms": 966,
+      "p95_ms": 1480,
       "in_tok": 50933,
-      "out_tok": 2124,
+      "out_tok": 2056,
       "rows": [
         {
           "id": "X01",
@@ -3246,13 +3246,13 @@
           "msg": "Any dock free after 7?",
           "intent": true,
           "eta": true,
-          "early": false,
+          "early": true,
           "latest": true,
-          "ok": false,
+          "ok": true,
           "got": {
             "intent": "ASK_OPTIONS",
             "eta": "17:00",
-            "early": "07:00",
+            "early": "19:00",
             "latest": null
           },
           "want": {
@@ -3307,13 +3307,13 @@
         {
           "id": "X23",
           "msg": "Please confirm 14:00 for me",
-          "intent": true,
+          "intent": false,
           "eta": false,
           "early": true,
           "latest": true,
           "ok": false,
           "got": {
-            "intent": "BOOK",
+            "intent": "CHECK_STATUS",
             "eta": "14:00",
             "early": null,
             "latest": null
@@ -3455,14 +3455,14 @@
           "id": "X30",
           "msg": "Nothing before 14:00 please",
           "intent": false,
-          "eta": true,
-          "early": true,
+          "eta": false,
+          "early": false,
           "latest": true,
           "ok": false,
           "got": {
             "intent": "REPORT_DELAY",
-            "eta": "12:00",
-            "early": "14:00",
+            "eta": "14:00",
+            "early": null,
             "latest": null
           },
           "want": {
@@ -3707,13 +3707,13 @@
           "id": "X42",
           "msg": "Can you give me dock 3 at 16:00?",
           "intent": true,
-          "eta": false,
+          "eta": true,
           "early": true,
           "latest": true,
-          "ok": false,
+          "ok": true,
           "got": {
             "intent": "BOOK",
-            "eta": "16:00",
+            "eta": "15:00",
             "early": null,
             "latest": null
           },
@@ -3748,13 +3748,13 @@
         {
           "id": "X44",
           "msg": "I reached already, where do I go?",
-          "intent": false,
+          "intent": true,
           "eta": true,
           "early": true,
           "latest": true,
-          "ok": false,
+          "ok": true,
           "got": {
-            "intent": "ASK_OPTIONS",
+            "intent": "CHECK_STATUS",
             "eta": "10:00",
             "early": null,
             "latest": null
@@ -3768,7 +3768,7 @@
         }
       ],
       "book_precision": 1.0,
-      "book_recall": 0.8
+      "book_recall": 0.6
     }
   ]
 }

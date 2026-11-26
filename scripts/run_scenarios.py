@@ -30,9 +30,19 @@ CASES = [
  ("L4c","The driver explicitly asks to book","THR012","DRV012","SHP1012",
   "Tyre repaired, I reach 11:10. Please book me the earliest dock you have.",NOW,
   "An explicit booking request is the ONLY thing that takes a hold and commits."),
- ("L5","The world changes mid-conversation","THR009","DRV006","SHP1006",
+ # L5 used to run on THR009 and was described as "a byte-identical retry". It was not
+ # one - THR009 is a different conversation from L4's THR001 - and it passed only because
+ # the old dedupe key ignored thread_id. The case proved the bug rather than the feature.
+ # It now runs where a retry actually happens: the same thread, the same clock.
+ ("L5","A client retries the same message","THR001","DRV006","SHP1006",
   "Traffic after Shahpura. Reaching around 11:20. Any slot after 12?",NOW,
-  "A byte-identical retry. It must not produce a second booking."),
+  "A byte-identical retry inside one conversation. It must not produce a second booking."),
+ ("L5b","The same words arrive in a different thread","THR009","DRV006","SHP1006",
+  "Traffic after Shahpura. Reaching around 11:20. Any slot after 12?",NOW,
+  "The shape of audit DEFECT-4. Box 3 cannot tell a re-sent message from a new question "
+  "about another truck, so it answers rather than replaying L4's reply at a stranger. "
+  "Nothing is double-booked, because the appointment indexes - not the dedupe key - are "
+  "what make that impossible."),
  ("L6","No feasible slot exists","THR005","DRV015","SHP1015",
   "Evening traffic. ETA 6:30. Can the reefer unload tonight?",LATE,
   "The reefer dock is under maintenance and nothing legal remains. This must escalate."),
@@ -137,7 +147,12 @@ fails = sum(1 for _, r in recs if r.get("checks"))
 out += ["## Summary", "",
         f"- Cases run: **{len(recs)}**",
         f"- Resolved without a human: **{auto}/{len(recs)}** ({auto/len(recs):.0%})",
-        f"- Output-check failures reaching a driver: **{fails}**",
+        # This used to read "Output-check failures reaching a driver", which can only ever
+        # be zero: a reply that fails a check is routed to a coordinator and never sent.
+        # The number worth printing is how often the checks had to do that.
+        f"- Replies stopped by an output check and escalated instead: **{fails}**",
+        f"- Output-check failures reaching a driver: **0** (by construction - a failed "
+        f"check routes to a human)",
         f"- Median turn: **{sorted(r['ms'] for _,r in recs)[len(recs)//2]} ms**",
         "", "One case escalates by design (L6). 100% automation would be the wrong result.",
         "",

@@ -81,7 +81,11 @@ print(f"  appointments created per run : {sorted({r[1] for r in res})}   (must b
 print(f"  winners per run              : {sorted({r[2] for r in res})}   (must be exactly [1])")
 print(f"  errors shown to any driver   : {sorted({r[4] for r in res})}   (must be exactly [0])")
 print(f"  every other caller got a clean 'lost, here is another option' path")
-print(f"  duplicate requests replayed, never double-booked (THR009 case)")
+# This used to claim "duplicate requests replayed, never double-booked (THR009 case)".
+# Nothing here tested that, and it is no longer even true: box 3 now replays only a retry
+# inside one thread, so THR009's copy of THR001's message gets answered. What this test
+# actually proves is the stronger thing - the guarantee does not depend on box 3 at all.
+print(f"  no reliance on de-duplication: {N} distinct threads, all racing, one winner")
 print(f"{'='*72}")
 print("PASS — no double booking" if allok else "FAIL")
 (ROOT / "docs" / "INTEGRITY_PROOF.json").write_text(json.dumps(

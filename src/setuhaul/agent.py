@@ -274,6 +274,49 @@ class _Shown:
     def __init__(self, dock_code, start, end):
         self.dock_code, self.start, self.end = dock_code, start, end
 
+
+# ---------------------------------------------------------------- "anything later?"
+# A follow-up like "anything later than that?" is meaningless without knowing what was
+# just shown. Nothing in the message carries a time, so the extractor sets no bound and
+# the next turn re-offers the same earliest slots - which is what it did, answering
+# "anything later" with a slot an hour EARLIER than the ones it had just listed.
+#
+# The options shown are already written to decision_audit each turn, so the thread's own
+# history is the state. No new table.
+_LATER = re.compile(
+    r"\b(any ?thing|some ?thing|option|slot|anything)?\s*(later|after that|further out|"
+    r"beyond that|past that|else)\b|\bnot (that|so) early\b|\btoo early\b|"
+    r"\blater (one|slot|option)s?\b", re.I)
+
+
+def last_shown_latest_start(con, thread_id: str, now: datetime) -> datetime | None:
+    """The latest START among the options most recently offered in this thread, so that
+    'later' can mean later than those rather than later than nothing."""
+    row = con.execute(
+        # box 11 audits under the route taken ('auto' or 'human'), not a literal
+        # 'answered' - matching the wrong string here would have failed silently and
+        # looked exactly like the bug it is meant to fix.
+        "SELECT detail_json FROM decision_audit WHERE thread_id=? AND box='11' "
+        "ORDER BY audit_id DESC LIMIT 1", (thread_id,)).fetchone()
+    if not row or not row[0]:
+        return None
+    try:
+        opts = json.loads(row[0]).get("options") or []
+    except Exception:
+        return None
+    best = None
+    for label in opts:
+        # labels look like "D2 19:00-20:00" or "D2 19:00 to 20:00"
+        m = re.search(r"(\d{1,2}):(\d{2})", str(label))
+        if not m:
+            continue
+        cand = now.replace(hour=int(m.group(1)), minute=int(m.group(2)),
+                           second=0, microsecond=0)
+        if best is None or cand > best:
+            best = cand
+    return best
+
+
 def remember_turn(con, *, shipment_id, driver_id, thread_id, facts, eta, conf,
                   early, latest, dedupe, now) -> bool:
     """Persist what the driver declared, so the next turn in the thread starts from it.
@@ -402,6 +445,15 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
               shipment_id=shipment_id, thread_id=thread_id,
               detail={"earliest": ts(early), "latest": ts(latest)}, now=now)
         rec["ms"] = int((time.time() - rec["t0"]) * 1000); return rec
+    # "Anything later than that?" carries no time, so the extractor sets no bound. Resolve
+    # it against what this thread was last offered, or the turn silently repeats itself.
+    if early is None and _LATER.search(message):
+        prev = last_shown_latest_start(con, thread_id, now)
+        if prev is not None:
+            early = prev + timedelta(minutes=1)
+            box(6, "later", f"'later' resolved against the options last shown in this "
+                            f"thread: nothing starting at or before {prev:%H:%M}")
+
     if early is not None:  ctx.earliest_acceptable = early
     if latest is not None: ctx.latest_acceptable = latest
     box(6, "eta", f"{eta:%H:%M} {conf} -> ready {ctx.ready_at:%H:%M} ({why})")
@@ -604,7 +656,9 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
                 f"say so once, for them together, and ask the driver to reply with the one they "
                 f"want so we can hold it. Do not single any one out as unreserved, because that "
                 f"implies the others are. Never say or imply that all slots, every slot, or the "
-                f"dock board generally is free or open - that is false and it will be rejected."
+                f"dock board generally is free or open - that is false and it will be rejected. "
+                f"There are {len(shown)} options, so use a word that agrees with that count - "
+                f"'both' is only ever correct for exactly two."
                 + (f" {dock_note}" if dock_note else ""))
     else:
         best = shown[0]

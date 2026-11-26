@@ -6,7 +6,7 @@ real round trip.
 
 | file | what it is |
 |---|---|
-| `setuhaul-explainer.mp4` | 2m49s narrated explainer, 1280×720. The argument, the measurements, and the limits. |
+| `setuhaul-explainer.mp4` | 2m57s narrated explainer, 1280×720. Six slides of argument, then the product itself: the driver journey end to end, then the coordinator's view. Rebuilt by `scripts/build_explainer_cards.py` then `scripts/build_explainer.py` (macOS `say` + ffmpeg); the demo footage is the two GIFs in `docs/media`, which are real captures of the deployed app. |
 | `setuhaul-demo-clean.mp4` | 43s silent screen capture of the full QA run, 1280×720. |
 | `setuhaul-demo.gif` | The same run as a GIF, for inline preview. |
 
@@ -67,7 +67,9 @@ that. Three checks were added or widened:
   in C1–C9, not in the screen.
 
 Verified against the deployed stack with eight genuinely fresh generations — the first attempt at
-this measured nothing, because `dedupe_key` is keyed on the date, so re-sending the same text
-replayed the stored reply in 1 ms instead of calling the model. All eight report `37 of 79`, name
+this measured nothing, because `dedupe_key` was then keyed on the date, so re-sending the same text
+replayed the stored reply in 1 ms instead of calling the model. That key has since been narrowed
+(`REPLAY_WINDOW_S`, 120 seconds, scoped to one thread), which is what made this re-measurement
+straightforward rather than a fight with the cache. All eight report `37 of 79`, name
 all three slots with times, and pass every check. Oracle eval 1.0000 / 1.0000 and race test 10/10
 still pass.

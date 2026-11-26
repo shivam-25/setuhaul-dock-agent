@@ -7,6 +7,9 @@ Twelve slides, 16:9, speaker notes on every one.
 
 Running order: the failure → the lane boundary → the race test → the data defects → the ten
 predicates and the oracle → the model comparison → **what was built, and who sees what** → the
+live latencies → **the bugs that using it found** → the case with no good answer → what is
+proved and what is not.
+predicates and the oracle → the model comparison → **what was built, and who sees what** → the
 live latencies → **the four bugs that using it found** → the case with no good answer → what is
 proved and what is not.
 

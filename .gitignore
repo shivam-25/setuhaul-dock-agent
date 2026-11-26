@@ -11,3 +11,8 @@ web/out/
 build/
 lambda.zip
 .vercel/
+
+# secrets and local database config
+.env
+.env.local
+web/.env.local

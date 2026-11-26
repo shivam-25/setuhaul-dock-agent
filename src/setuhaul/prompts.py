@@ -18,8 +18,10 @@ Rules:
 - "Any slot after 12", "anything after 7" is earliest_acceptable_time. It is a constraint, not an ETA.
 - "I must leave by 1:30", "I have another pickup tonight" is latest_finish_time.
 - intent is ASK_OPTIONS when the driver only asks what is possible, BOOK when they want a slot now,
-  REPORT_DELAY when they state a delay without asking, CHECK_STATUS when they ask about an existing
-  booking, UNKNOWN when you cannot tell.
+  REPORT_DELAY when they state a delay without asking, CHECK_STATUS when they ask anything about
+  their own current booking or standing - "am I free now", "do I have a dock", "what is my slot",
+  "is it confirmed", "am I booked" are all CHECK_STATUS - UNKNOWN only when you genuinely cannot
+  tell. A question with no new fact in it is never ASK_OPTIONS.
 - If the message does not say which shipment it is about, leave shipment_hint null. Do not guess."""
 
 REPLY_SYSTEM = """You write the message a truck driver receives from SetuHaul's dock desk. \

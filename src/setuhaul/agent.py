@@ -63,6 +63,8 @@ _TOOL = {"toolSpec": {"name": "record_driver_facts",
         "earliest_acceptable_time": {"type": ["string","null"]},
         "latest_finish_time": {"type": ["string","null"]},
         "shipment_hint": {"type": ["string","null"]},
+        "requested_dock": {"type": ["string","null"], "description":
+            "A dock the driver asks for by code, e.g. D4. Null if they named none."},
         "reason_code": {"type": ["string","null"], "enum": ["TRAFFIC","BREAKDOWN","WEATHER",
                         "LATE_DEPARTURE","LOADING_DELAY","ROUTE_ISSUE","OTHER", None]},
     }, "required": ["intent","confidence"]}}}}
@@ -117,7 +119,8 @@ def extract(message: str, plan_hint: str) -> tuple[dict, int, dict]:
     return {k: _norm(v) for k, v in out.items()}, ms, r.get("usage", {})
 
 # ---------------------------------------------------------------- box 6: the ETA rule (D3, in code)
-def apply_eta_rule(facts: dict, original_eta: datetime) -> tuple[datetime, str, str]:
+def apply_eta_rule(facts: dict, original_eta: datetime, known_eta: datetime | None = None,
+                   known_conf: str = "HIGH") -> tuple[datetime, str, str]:
     """The model reports what was SAID. This decides what it MEANS. Deterministic."""
     # Confidence is decided HERE, not by the model. The rule is deterministic and matches every
     # confidence_code in the supplied data: an explicit clock time is HIGH; a relative delay alone
@@ -136,10 +139,21 @@ def apply_eta_rule(facts: dict, original_eta: datetime) -> tuple[datetime, str, 
         eta = original_eta + timedelta(minutes=int(facts["relative_delay_min"]))
         return eta, "LOW", (f"{facts['relative_delay_min']} min after the planned "
                             f"{original_eta:%H:%M}; no arrival time given, so treated as uncertain")
+    # Nothing declared THIS turn. Fall back to what the driver already told us earlier in the
+    # thread, not to the seeded plan - otherwise a driver who reports an hour's delay and then
+    # says anything else is silently offered a dock before they can arrive.
+    if known_eta is not None and known_eta != original_eta:
+        return known_eta, known_conf, (f"nothing new this turn; using the {known_eta:%H:%M} "
+                                       f"the driver gave earlier")
     return original_eta, "HIGH", "no change declared; using the plan"
 
 # ---------------------------------------------------------------- box 11: output checks
 _CONFIRM = re.compile(r"\bconfirm(ed|ation)?\b", re.I)
+# C4 bans ASSERTING confirmation, not the word itself. "waiting for warehouse to accept" and
+# "pending confirmation" are the honest phrasings and must survive, or a status answer about a
+# PENDING_CONFIRMATION booking can never be written.
+_NOT_YET = re.compile(r"\b(pending|waiting|awaiting|await|not|yet|once|after|when|unconfirmed|"
+                      r"to be|will be|still|before)\b[^.]{0,16}$", re.I)
 _TIME = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
 _DOCK = re.compile(r"\bD([1-9])\b")
 # OPTIONS is a shortlist of the feasible chains, never the whole board. A reply that
@@ -161,8 +175,11 @@ def output_checks(reply: str, options: list, status: str, held_slot_labels: set)
         if hhmm not in allowed_times: fails.append(f"C2 time {hhmm} not in options")
     if not options and (_DOCK.search(reply) or _TIME.search(reply)):
         fails.append("C3 named a slot when no option was offered")
-    if _CONFIRM.search(reply) and status != "CONFIRMED":
-        fails.append(f"C4 said 'confirmed' while status is {status}")
+    if status != "CONFIRMED":
+        for m in _CONFIRM.finditer(reply):
+            if not _NOT_YET.search(reply[:m.start()]):
+                fails.append(f"C4 said 'confirmed' while status is {status}")
+                break
     if re.search(r"\[phone\]|\[email\]", reply): fails.append("C7 echoed masked personal data")
     if _OVERCLAIM.search(reply):
         fails.append("C8 claimed availability beyond the options given")
@@ -243,6 +260,48 @@ def escalation_record(con, ctx, cands, now, reason):
         "BLOCKER": blocker,
     }
 
+class _Shown:
+    """Minimal option shape so output_checks can police a status reply like any other."""
+    __slots__ = ("dock_code", "start", "end")
+    def __init__(self, dock_code, start, end):
+        self.dock_code, self.start, self.end = dock_code, start, end
+
+def remember_turn(con, *, shipment_id, driver_id, thread_id, facts, eta, conf,
+                  early, latest, dedupe, now) -> bool:
+    """Persist what the driver declared, so the next turn in the thread starts from it.
+
+    Without this the agent is stateless per turn: a driver who reports an hour's delay and
+    then says only "D4 please" gets slots computed from the ORIGINAL plan, i.e. offered a
+    dock before they can arrive. Writes nothing when the driver declared nothing.
+    """
+    declared = (facts.get("declared_eta_time") or facts.get("relative_delay_min") is not None)
+    if not (declared or early or latest):
+        return False
+    try:
+        if declared:
+            con.execute(
+                "INSERT INTO eta_updates(eta_update_id,shipment_id,source_type,"
+                "reported_by_driver_id,declared_eta_ts,confidence_code,delay_reason_code,"
+                "note,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                (f"ETA-{uuid.uuid4().hex[:8]}", shipment_id, "DRIVER_DECLARED", driver_id,
+                 ts(eta), conf, facts.get("reason_code"), "declared in conversation", ts(now)))
+        if early or latest:
+            con.execute(
+                "INSERT INTO driver_exceptions(exception_id,shipment_id,driver_id,thread_id,"
+                "exception_type,reported_at,reported_delay_min,declared_eta_ts,"
+                "earliest_acceptable_ts,latest_acceptable_ts,severity_code,exception_status,"
+                "description,dedupe_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (f"EXC-{uuid.uuid4().hex[:8]}", shipment_id, driver_id, thread_id,
+                 facts.get("reason_code") or "UNKNOWN", ts(now),
+                 facts.get("relative_delay_min"), ts(eta) if declared else None,
+                 ts(early) if early else None, ts(latest) if latest else None,
+                 "MEDIUM", "OPEN", "constraint stated in conversation", dedupe))
+        con.commit()
+        return True
+    except Exception:
+        con.rollback()      # a concurrent duplicate won the unique index; harmless
+        return False
+
 def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_override=None):
     """One driver turn through all eleven boxes. Returns a transcript record."""
     rid = f"REQ-{uuid.uuid4().hex[:8]}"
@@ -307,7 +366,7 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
 
     orig = con.execute("SELECT original_eta_ts FROM shipments WHERE shipment_id=?",
                        (shipment_id,)).fetchone()[0]
-    eta, conf, why = apply_eta_rule(facts, dt_(orig))
+    eta, conf, why = apply_eta_rule(facts, dt_(orig), ctx.effective_eta, ctx.confidence)
     ctx.effective_eta, ctx.confidence = eta, conf
     def _at(v, after=None):
         hm = parse_hhmm(v)
@@ -324,10 +383,89 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
     if latest is not None: ctx.latest_acceptable = latest
     box(6, "eta", f"{eta:%H:%M} {conf} -> ready {ctx.ready_at:%H:%M} ({why})")
 
+    # The driver said this out loud; the next turn must not re-derive from the original plan.
+    # load_ctx already reads eta_updates (via v_latest_eta) and driver_exceptions - nothing
+    # was ever writing them, so every turn restarted from the seeded ETA.
+    remember_turn(con, shipment_id=shipment_id, driver_id=driver_id, thread_id=thread_id,
+                  facts=facts, eta=eta, conf=conf, early=early, latest=latest,
+                  dedupe=dk, now=now)
+
     intent = intent_override or facts.get("intent") or "UNKNOWN"
+
+    # CHECK_STATUS is a question about an existing booking, not a request for new slots.
+    # The extractor has always returned it; until now the router collapsed everything that
+    # was not BOOK into "here are three slots", so "Am I free now" got an options list.
+    said_something = any(facts.get(k) is not None for k in
+                         ("declared_eta_time", "relative_delay_min", "earliest_acceptable_time",
+                          "latest_finish_time", "requested_dock"))
+    if intent == "UNKNOWN" and not said_something:
+        # The model could not tell what was being asked and the message carries no facts.
+        # Dumping three slots at it is how "Am I free now" got an options list.
+        box(7, "route", "intent UNKNOWN and no facts stated - asking rather than offering")
+        q, ms = clarify("whether they want to see options, book a slot, or check the booking "
+                        "they already have", masked)
+        box(11, "clarify", "asked what they need", ms)
+        rec["route"] = "ask"; rec["reply"] = q
+        audit(con, request_id=rid, box="7", decision="asked_intent", shipment_id=shipment_id,
+              thread_id=thread_id, now=now)
+        rec["ms"] = int((time.time() - rec["t0"]) * 1000); return rec
+
+    if intent == "CHECK_STATUS":
+        # A chain books one row per slot: the primary APT-x (is_current=1) plus APT-x-O1
+        # overflow rows. Span the whole chain, or the driver is told a 60-minute window
+        # for a 120-minute unload.
+        appt = con.execute(
+            "SELECT a.appointment_id,a.appointment_status,d.dock_code,"
+            "       MIN(sl.slot_start_ts),MAX(sl.slot_end_ts) "
+            "FROM appointments a "
+            "JOIN appointment_slots sl ON sl.slot_id=a.slot_id "
+            "JOIN docks d ON d.dock_id=sl.dock_id "
+            "WHERE a.shipment_id=? AND a.appointment_status IN "
+            "      ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS') "
+            "  AND (a.is_current=1 OR a.appointment_id LIKE ("
+            "      SELECT p.appointment_id FROM appointments p WHERE p.shipment_id=a.shipment_id "
+            "      AND p.is_current=1 LIMIT 1) || '-O%') "
+            "GROUP BY d.dock_code", (shipment_id,)).fetchone()
+        box(7, "status", f"{appt[1]} on {appt[2]}" if appt else "no current appointment")
+        if appt:
+            st, en = dt_(appt[3]), dt_(appt[4])
+            opts = [_Shown(appt[2], st, en)]
+            ctxt = (f"The driver is asking about their existing booking, not for new slots. "
+                    f"They have dock {appt[2]} from {st:%H:%M} to {en:%H:%M}. Its status is "
+                    f"{appt[1]}. Tell them that and nothing else. Do not offer other slots.")
+            status = appt[1]
+        else:
+            opts, status = [], "NOT_RESERVED"
+            ctxt = ("The driver is asking whether they have a dock booked. They do NOT - nothing "
+                    "is held or booked for them. Say that plainly, then say they can ask for "
+                    "options and you will show what fits. Do not name any dock or time.")
+        text, ms, fails = draft_reply(ctxt, opts, status)
+        box(11, "reply", f"status answer; checks {'passed' if not fails else fails}", ms)
+        rec["route"] = "auto" if not fails else "human"
+        rec["reply"] = text if not fails else ("I've passed this to a SetuHaul coordinator so you "
+                                               "get an accurate answer rather than a guess.")
+        rec["checks"] = fails
+        audit(con, request_id=rid, box="7", decision="status_answered", shipment_id=shipment_id,
+              thread_id=thread_id, detail={"appointment": appt[0] if appt else None}, now=now)
+        rec["ms"] = int((time.time() - rec["t0"]) * 1000); return rec
+
     all_c = candidates(con, ctx, now)
     ok = rank_options([c for c in all_c if c.ok])
     box(7, "feasible", f"{len(ok)} of {len(all_c)} slot chains pass F1-F10")
+
+    # A dock the driver names is a preference, never a relaxation: filter the feasible set,
+    # never add to it. If nothing feasible is on that dock, say so and offer the rest.
+    want = (facts.get("requested_dock") or "").strip().upper()
+    dock_note = None
+    if want and re.fullmatch(r"D[1-9]", want):
+        on_dock = [c for c in ok if c.dock_code == want]
+        if on_dock:
+            ok = on_dock + [c for c in ok if c.dock_code != want]
+            box(8, "prefer", f"driver asked for {want}: {len(on_dock)} feasible there, ranked first")
+        else:
+            dock_note = (f"The driver asked for dock {want}. Nothing on {want} fits their load "
+                         f"today, so these are on other docks. Say that in one short clause.")
+            box(8, "prefer", f"driver asked for {want}: nothing feasible there, offering others")
 
     if not ok:
         esc = escalation_record(con, ctx, all_c, now, "no feasible slot after all constraints")
@@ -364,7 +502,8 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
                 f"say so once, for them together, and ask the driver to reply with the one they "
                 f"want so we can hold it. Do not single any one out as unreserved, because that "
                 f"implies the others are. Never say or imply that all slots, every slot, or the "
-                f"dock board generally is free or open - that is false and it will be rejected.")
+                f"dock board generally is free or open - that is false and it will be rejected."
+                + (f" {dock_note}" if dock_note else ""))
     else:
         best = shown[0]
         got = claim(con, best.slot_ids, thread_id, shipment_id, now); con.commit()

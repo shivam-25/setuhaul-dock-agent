@@ -397,12 +397,43 @@ def _trip_rows(con, where, params, now_ts):
         ORDER BY s.original_eta_ts""", params).fetchall()
 
 
+
+def phase_of(d, now):
+    """The commitment phase computed from a row already fetched, not re-queried.
+
+    commitment_state() costs two round trips per shipment - itself plus arrival() - and the
+    operations dashboard called it once per truck, which is where 35 queries and eight
+    seconds came from. Every column it reads is already in _trip_rows: the slot window and
+    the check-in timestamps. So compute it here instead and spend nothing.
+
+    This duplicates the rule, which is a real risk: two copies can drift. scripts/phase_test.py
+    asserts the two agree for every shipment in the snapshot, so a drift fails a test rather
+    than quietly mis-stating a booking to a driver.
+    """
+    if not d.get("appt_id") or not d.get("slot_end"):
+        return None
+    start, end = dt_(d["slot_start"]), dt_(d["slot_end"])
+    if now.tzinfo is None:
+        start, end = start.replace(tzinfo=None), end.replace(tzinfo=None)
+    elif start.tzinfo is None:
+        start, end = start.replace(tzinfo=now.tzinfo), end.replace(tzinfo=now.tzinfo)
+    # arrival(): on_dock is dock_in_ts, finished is gate_out_ts. queue_state is not in this
+    # row, but dock_in_ts and gate_out_ts are set whenever it is, which phase_test checks.
+    if d.get("dock_in_ts") or d.get("unload_start_ts") or d.get("gate_out_ts"):
+        return "being_served"
+    if now >= end:
+        return "lapsed"
+    if now >= start:
+        return "in_window"
+    return "upcoming"
+
+
 def _trip_alerts(con, d, now):
     """What this driver must be told without having to ask."""
     out = []
     sid = d["shipment_id"]
     if d["appt_id"]:
-        phase = commitment_state(con, sid, now)
+        phase = phase_of(d, now)
         if phase == "lapsed":
             out.append({"level": "critical", "title": "Your booked window has passed",
                         "body": f"Dock {d['dock_code']} {fmt_hm(d['slot_start'])}-"
@@ -546,7 +577,7 @@ def ops_overview(user: dict = Depends(require_role("coordinator", "warehouse")),
             eta = dt_(d["eta"]) if d["eta"] else None
             plan = dt_(d["original_eta_ts"]) if d["original_eta_ts"] else None
             delay = int((eta - plan).total_seconds() // 60) if eta and plan else 0
-            phase = commitment_state(con, d["shipment_id"], n) if d["appt_id"] else None
+            phase = phase_of(d, n)
             why = None
             if phase == "lapsed":
                 why, rank = "Booked window has passed", 0

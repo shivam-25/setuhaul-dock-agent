@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { myTrips } from "../lib/api";
 import { useSession } from "../lib/session";
-import { BarChart, Progress, Stat } from "../components/charts";
+import { BarChart, Progress, Stat, DemoClock } from "../components/charts";
 import { useTableControls, Toolbar, PRIORITIES, PRANK } from "../components/table";
 
 const LEVEL = { critical: "Act now", warn: "Check this", info: "For info", ok: "All good" };
@@ -49,6 +49,11 @@ export default function Home() {
   if (err) return <main className="pad"><p className="empty">{err}</p></main>;
   if (!d) return <main className="pad"><p className="empty">Loading your trips…</p></main>;
 
+  // The same page serves a driver looking at their own two trucks and a coordinator
+  // looking at all eighteen. Calling the whole fleet "My trips" was simply wrong, and so
+  // was telling a coordinator that "your" booked window had passed.
+  const ops = d.voice === "ops";
+
   const ask = (shipment, text) =>
     router.push(`/chat?shipment=${shipment}${text ? `&q=${encodeURIComponent(text)}` : ""}`);
 
@@ -60,14 +65,17 @@ export default function Home() {
     <main className="pad">
       <header className="phead">
         <div>
-          <p className="eyebrow">Driver · {user.display_name}</p>
-          <h1>My trips</h1>
+          <p className="eyebrow">
+            {ops ? `Operations · ${user.facility_id || "all facilities"}`
+                 : `Driver · ${user.display_name}`}
+          </p>
+          <h1>{ops ? "Every truck today" : "My trips"}</h1>
         </div>
-        <p className="clock">{d.now}</p>
+        <DemoClock now={d.now} day={d.day} />
       </header>
 
       <section className="statrow">
-        <Stat n={d.summary.active}   label="active trips" />
+        <Stat n={d.summary.active}   label={ops ? "trucks moving" : "active trips"} />
         <Stat n={d.summary.booked}   label="dock booked" tone={d.summary.booked ? "ok" : ""} />
         <Stat n={d.summary.unbooked} label="no dock yet" tone={d.summary.unbooked ? "warn" : ""} />
         <Stat n={d.summary.late}     label="running late" tone={d.summary.late ? "warn" : ""} />
@@ -75,7 +83,7 @@ export default function Home() {
 
       {needed.length > 0 && (
         <section className="card alerts">
-          <h2>What needs you</h2>
+          <h2>{ops ? "What needs someone" : "What needs you"}</h2>
           {needed.map((a, i) => (
             <div className={`alert ${a.level}`} key={i}>
               <div className="atop">
@@ -84,7 +92,7 @@ export default function Home() {
                 <span className="muted">{a.shipment} · {a.customer}</span>
               </div>
               <p>{a.body}</p>
-              {a.action === "ask" && (
+              {a.action === "ask" && !ops && (
                 <button className="ghost small" onClick={() => ask(a.shipment, a.ask)}>
                   Ask about this →
                 </button>
@@ -96,7 +104,7 @@ export default function Home() {
 
       {d.delay_chart.length > 0 && (
         <section className="card">
-          <h2>How late each trip is running</h2>
+          <h2>{ops ? "How late each truck is running" : "How late each trip is running"}</h2>
           <p className="sub">Minutes against the original plan. Zero means on time.</p>
           <BarChart data={d.delay_chart} unit=" min"
                     accent={d.summary.late ? "var(--hold)" : "var(--ok)"} />
@@ -106,7 +114,7 @@ export default function Home() {
       {/* A filter bar over two trips is furniture. It appears at four, which is roughly
           where a driver stops being able to scan the list. */}
       <div className="listhead plain">
-        <h2>{d.trips.length >= 4 ? "All trips" : d.trips.length === 1 ? "Your trip" : "Your trips"}</h2>
+        <h2>{ops ? "All trucks" : d.trips.length === 1 ? "Your trip" : "Your trips"}</h2>
         {d.trips.length >= 4 && <Toolbar ctl={tc} noun="trips"
                                          placeholder="Search customer, city, shipment…" />}
       </div>
@@ -144,16 +152,19 @@ export default function Home() {
             <Progress stages={t.stages} />
 
             <div className="trowbtns">
-              <button className="primary small" onClick={() => ask(t.shipment_id)}>
-                Message the dock desk
-              </button>
-              {!t.appt_id && (
+              {!ops && (
+                <button className="primary small" onClick={() => ask(t.shipment_id)}>
+                  Message the dock desk
+                </button>
+              )}
+              {ops && <span className="whoname">{t.driver_name}</span>}
+              {!ops && !t.appt_id && (
                 <button className="ghost small"
                         onClick={() => ask(t.shipment_id, "I am running late. What slots can I get?")}>
                   I am running late
                 </button>
               )}
-              {t.appt_id && (
+              {!ops && t.appt_id && (
                 <button className="ghost small"
                         onClick={() => ask(t.shipment_id, "Is my booked slot still valid?")}>
                   Check my slot

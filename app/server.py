@@ -6,7 +6,7 @@
 Both call the same pipeline, so the demo and the deployed agent cannot drift apart.
 """
 from __future__ import annotations
-import os, sys, sqlite3, pathlib, shutil, json
+import os, sys, sqlite3, pathlib, shutil, json, uuid
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -141,8 +141,18 @@ def invocations(inv: Invocation):
 # ------------------------------------------------------------------ the UI API
 class ChatIn(BaseModel):
     message: str
-    driver_id: str = "DRV006"
-    thread_id: str = "THR-API"
+    # No demo defaults here. driver_id used to default to "DRV006" and thread_id to a
+    # single shared "THR-API".
+    #
+    # The first one locked every other driver out of the product: a signed-in driver who
+    # did not send the field got DRV006, the guard below saw a mismatch with their own
+    # identity and refused them. The web client does not send it, so fourteen of fifteen
+    # drivers could not use chat at all. It survived because every test ran as DRV006.
+    #
+    # The second was worse in kind: two drivers who both omitted thread_id would have
+    # shared one conversation and seen each other's turns.
+    driver_id: str | None = None
+    thread_id: str | None = None
     shipment_id: str | None = None
     now: str | None = None
 
@@ -155,6 +165,10 @@ def chat(body: ChatIn, user: dict = Depends(current_user)):
         if body.driver_id and body.driver_id != user["driver_id"]:
             raise HTTPException(403, "you can only send messages as yourself")
         body.driver_id = user["driver_id"]
+    elif not body.driver_id:
+        raise HTTPException(400, "driver_id is required when not signed in as a driver")
+    if not body.thread_id:
+        body.thread_id = f"THR-{uuid.uuid4().hex[:10]}"
     con = db()
     try:
         rec = handle(con, message=body.message, driver_id=body.driver_id,
@@ -428,41 +442,68 @@ def phase_of(d, now):
     return "upcoming"
 
 
-def _trip_alerts(con, d, now):
-    """What this driver must be told without having to ask."""
+def _trip_alerts(con, d, now, voice="driver"):
+    """What someone must be told without having to ask.
+
+    The same facts read differently depending on who is looking. A driver is told "your
+    booked window has passed"; a coordinator looking at the whole fleet is told which
+    driver and which customer, because "your window" is meaningless to them and there
+    are eighteen trucks on the page.
+    """
     out = []
     sid = d["shipment_id"]
+    ops = voice != "driver"
+    who = f"{d['driver_name']} · {d['customer_name']}"
     if d["appt_id"]:
         phase = phase_of(d, now)
         if phase == "lapsed":
-            out.append({"level": "critical", "title": "Your booked window has passed",
-                        "body": f"Dock {d['dock_code']} {fmt_hm(d['slot_start'])}-"
-                                f"{fmt_hm(d['slot_end'])} is no longer valid. A coordinator "
-                                f"is finding you a new one.",
-                        "action": "ask", "ask": "My booked window has passed. What now?"})
+            out.append({"level": "critical",
+                        "title": "Booked window has passed" if ops
+                                 else "Your booked window has passed",
+                        "body": (f"{who} — dock {d['dock_code']} "
+                                 f"{fmt_hm(d['slot_start'])}-{fmt_hm(d['slot_end'])} expired "
+                                 f"with the truck still waiting. Needs a new slot.") if ops else
+                                (f"Dock {d['dock_code']} {fmt_hm(d['slot_start'])}-"
+                                 f"{fmt_hm(d['slot_end'])} is no longer valid. A coordinator "
+                                 f"is finding you a new one."),
+                        "action": None if ops else "ask",
+                        "ask": "My booked window has passed. What now?"})
         elif phase == "being_served":
             out.append({"level": "ok", "title": f"Unloading at dock {d['dock_code']}",
-                        "body": "Nothing to do. You are on the dock now."})
+                        "body": f"{who} is on the dock." if ops
+                                else "Nothing to do. You are on the dock now."})
         elif d["appt_status"] == "PENDING_CONFIRMATION":
             out.append({"level": "warn", "title": "Held, waiting for the warehouse",
-                        "body": f"Dock {d['dock_code']} {fmt_hm(d['slot_start'])} is held for "
-                                f"you but not yet accepted. Do not rely on it until it is.",
-                        "action": "ask", "ask": "Has the warehouse accepted my slot yet?"})
+                        "body": (f"{who} — dock {d['dock_code']} {fmt_hm(d['slot_start'])} is "
+                                 f"held but not accepted. The driver has been told it is not "
+                                 f"confirmed.") if ops else
+                                (f"Dock {d['dock_code']} {fmt_hm(d['slot_start'])} is held for "
+                                 f"you but not yet accepted. Do not rely on it until it is."),
+                        "action": None if ops else "ask",
+                        "ask": "Has the warehouse accepted my slot yet?"})
         elif phase == "in_window":
-            out.append({"level": "ok", "title": f"Your window is open now",
-                        "body": f"Dock {d['dock_code']} until {fmt_hm(d['slot_end'])}."})
+            out.append({"level": "ok",
+                        "title": "Window open now" if ops else "Your window is open now",
+                        "body": (f"{who} — dock {d['dock_code']} until "
+                                 f"{fmt_hm(d['slot_end'])}.") if ops
+                                else f"Dock {d['dock_code']} until {fmt_hm(d['slot_end'])}."})
     elif d["current_status"] in ("IN_TRANSIT", "WAITING", "ASSIGNED"):
         out.append({"level": "warn", "title": "No dock booked yet",
-                    "body": "Tell us your delay and we will find you a slot.",
-                    "action": "ask", "ask": "I am running late. What slots can I get?"})
+                    "body": f"{who} is in transit with no appointment." if ops
+                            else "Tell us your delay and we will find you a slot.",
+                    "action": None if ops else "ask",
+                    "ask": "I am running late. What slots can I get?"})
     if d["delay_min"] >= 30 and d["appt_id"]:
         out.append({"level": "warn", "title": f"Running {d['delay_min']} minutes behind",
-                    "body": "Your booked window may no longer fit. Worth checking.",
-                    "action": "ask", "ask": f"I am about {d['delay_min']} minutes late. "
-                                            f"Does my slot still work?"})
+                    "body": f"{who} — booked window may no longer fit." if ops
+                            else "Your booked window may no longer fit. Worth checking.",
+                    "action": None if ops else "ask",
+                    "ask": f"I am about {d['delay_min']} minutes late. "
+                           f"Does my slot still work?"})
     if d["queue_position"]:
         out.append({"level": "info", "title": f"Position {d['queue_position']} in the yard queue",
-                    "body": "You are checked in and waiting for a dock."})
+                    "body": f"{who} is checked in, waiting for a dock." if ops
+                            else "You are checked in and waiting for a dock."})
     return out
 
 
@@ -474,6 +515,7 @@ def fmt_hm(t):
 def my_trips(user: dict = Depends(current_user), now: str | None = None):
     """Everything a driver's home screen needs, in one call."""
     n = dt_(now or DEFAULT_NOW)
+    voice = "driver" if user["role"] == "driver" else "ops"
     where, params = scope_clause(user)
     con = db()
     try:
@@ -495,7 +537,7 @@ def my_trips(user: dict = Depends(current_user), now: str | None = None):
             d["eta_hm"], d["plan_hm"] = fmt_hm(d["eta"]), fmt_hm(d["original_eta_ts"])
             d["slot_hm"] = (f"{fmt_hm(d['slot_start'])}-{fmt_hm(d['slot_end'])}"
                             if d["slot_start"] else None)
-            d["alerts"] = _trip_alerts(con, d, n)
+            d["alerts"] = _trip_alerts(con, d, n, voice)
             trips.append(d)
 
         # A driver's own record, so the numbers on their screen are about them.
@@ -503,7 +545,7 @@ def my_trips(user: dict = Depends(current_user), now: str | None = None):
                   ("ASSIGNED", "IN_TRANSIT", "WAITING", "IN_DOCK")]
         booked = [t for t in active if t["appt_id"]]
         late = [t for t in active if t["delay_min"] >= 15]
-        return {"now": fmt_hm(ts(n)), "trips": trips,
+        return {"now": fmt_hm(ts(n)), "day": ts(n)[:10], "voice": voice, "trips": trips,
                 "summary": {"active": len(active), "booked": len(booked),
                             "unbooked": len(active) - len(booked), "late": len(late),
                             "alerts": sum(len(t["alerts"]) for t in trips),
@@ -600,6 +642,7 @@ def ops_overview(user: dict = Depends(require_role("coordinator", "warehouse")),
         out_n = sum(1 for d in docks if d["outage"])
         return {
             "now": fmt_hm(ts(n)),
+            "day": ts(n)[:10],
             "scope": fac or "all facilities",
             "docks": [dict(d) for d in docks],
             "dock_summary": {"total": len(docks), "busy": busy, "out": out_n,

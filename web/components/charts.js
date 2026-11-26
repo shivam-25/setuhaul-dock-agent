@@ -64,3 +64,26 @@ export function Stat({ n, label, tone }) {
     </div>
   );
 }
+
+
+/** The clock the whole system runs at.
+ *
+ * The supplied dataset is a snapshot of one day and contains no "now" - there is no
+ * current time to read, so one is declared. Showing a bare "10:05" in the corner tells
+ * a viewer nothing and invites them to read it as the real time, so it is labelled and
+ * carries its date.
+ */
+export function DemoClock({ now, day }) {
+  const d = day ? new Date(`${day}T00:00:00`) : null;
+  const nice = d && !isNaN(d)
+    ? d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short",
+                                      year: "numeric" })
+    : day;
+  return (
+    <div className="demoClock" title="The dataset is a one-day snapshot with no current time, so the system runs at a fixed clock.">
+      <span className="dcLabel">Demo clock</span>
+      <span className="dcTime">{now}</span>
+      {nice && <span className="dcDay">{nice} · IST</span>}
+    </div>
+  );
+}

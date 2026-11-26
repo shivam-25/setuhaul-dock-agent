@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { opsOverview, pending, decide } from "../../lib/api";
 import { useSession } from "../../lib/session";
-import { BarChart, Split, Stat } from "../../components/charts";
+import { BarChart, Split, Stat, DemoClock } from "../../components/charts";
 import { useTableControls, Toolbar, PRIORITIES, PRANK } from "../../components/table";
 
 const FAC_COLOURS = ["var(--fac-a)", "var(--fac-b)", "var(--busy)", "var(--free)"];
@@ -109,7 +109,7 @@ export default function Console() {
           <p className="eyebrow">Operations · {user.display_name}</p>
           <h1>Today at {d.scope}</h1>
         </div>
-        <p className="clock">{d.now}</p>
+        <DemoClock now={d.now} day={d.day} />
       </header>
 
       <section className="statrow">

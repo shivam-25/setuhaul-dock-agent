@@ -22,7 +22,7 @@ export default function Nav() {
   const links = user.role === "driver"
     ? [["/", "My trips"], ["/chat", "Dock desk"], ["/audit", "My decisions"]]
     : [["/console", "Overview"], ["/board", "Dock board"], ["/audit", "Decision log"],
-       ["/", "Driver view"]];
+       ["/", "Every truck"]];
 
   return (
     <nav className="nav">
@@ -34,7 +34,9 @@ export default function Nav() {
           {links.map(([href, label]) => (
             <Link key={href} href={href} className={p === href ? "on" : ""}>{label}</Link>
           ))}
-          <span className="sp">{m ? `${m.now.slice(11, 16)} · ${m.slots} slots` : ""}</span>
+          <span className="sp" title="The dataset is a one-day snapshot with no current time, so the system runs at a fixed clock.">
+            {m ? `demo clock ${m.now.slice(11, 16)} · ${m.slots} slots` : ""}
+          </span>
           <Link href="/account" className={"who" + (p === "/account" ? " on" : "")}>
             {user.display_name} <em>{user.role}</em>
           </Link>

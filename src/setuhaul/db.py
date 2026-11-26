@@ -24,6 +24,7 @@ import os, re, sqlite3
 _PLACEHOLDER = re.compile(r"'(?:[^']|'')*'|\?")
 # `IS NOT %s`, but never `IS NOT NULL/TRUE/FALSE/DISTINCT`, which Postgres accepts as-is.
 _IS_NOT_EXPR = re.compile(r"\bIS\s+NOT\s+(?!NULL\b|TRUE\b|FALSE\b|DISTINCT\b)", re.I)
+_GROUP_CONCAT = re.compile(r"\bGROUP_CONCAT\s*\(([^(),]+)(?:,([^()]+))?\)", re.I)
 
 
 def _to_pg(sql: str) -> str:
@@ -36,6 +37,12 @@ def _to_pg(sql: str) -> str:
     # IS DISTINCT FROM. Both engines mean the same thing: NULL compares without poisoning
     # the result, which is exactly why the slot-lock query uses it.
     out = _IS_NOT_EXPR.sub("IS DISTINCT FROM ", out)
+    # SQLite's GROUP_CONCAT(x) and GROUP_CONCAT(x, sep) are STRING_AGG(x, sep) in Postgres,
+    # where the separator is not optional.
+    out = _GROUP_CONCAT.sub(
+        lambda m: f"STRING_AGG({m.group(1).strip()}"
+                  + (f", {m.group(2).strip()})" if m.group(2) else ", ',')"),
+        out)
     return out
 
 

@@ -151,10 +151,30 @@ def drivers(user: dict = Depends(current_user)):
         out[r["driver_id"]]["shipments"].append(dict(r))
     return list(out.values())
 
+def assert_may_see(con, user: dict, shipment_id: str):
+    """One ownership rule for every endpoint that takes a shipment id.
+
+    Found by driving the UI as a driver: /api/why returned another driver's full
+    rejection detail - their load, priority, dock type and every slot considered - to
+    anyone signed in. Hiding a link in the nav is not access control.
+    """
+    if user["role"] == "coordinator":
+        return
+    row = con.execute("SELECT driver_id, destination_facility_id FROM shipments "
+                      "WHERE shipment_id=?", (shipment_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "no such shipment")
+    if user["role"] == "driver" and row["driver_id"] != user["driver_id"]:
+        raise HTTPException(403, "that shipment is not yours")
+    if user["role"] == "warehouse" and row["destination_facility_id"] != user["facility_id"]:
+        raise HTTPException(403, "that shipment is not at your facility")
+
+
 @app.get("/api/why/{shipment_id}")
-def why(shipment_id: str, now: str | None = None):
+def why(shipment_id: str, now: str | None = None, user: dict = Depends(current_user)):
     """Every candidate considered, with the reason each was rejected. The coordinator's panel."""
     con = db(); n = dt_(now or DEFAULT_NOW)
+    assert_may_see(con, user, shipment_id)
     try:
         ctx = load_ctx(con, shipment_id, thread_id="WHY", now=n)
         cands = candidates(con, ctx, n)
@@ -174,7 +194,7 @@ def why(shipment_id: str, now: str | None = None):
                           "reasons": c.failures} for c in cands if not c.ok][:60]}
 
 @app.get("/api/board")
-def board(now: str | None = None):
+def board(user: dict = Depends(require_role("coordinator","warehouse")), now: str | None = None):
     con = db()
     rows = con.execute("""
         SELECT f.facility_id, d.dock_code, d.dock_type, s.slot_id, s.slot_start_ts, s.slot_end_ts,
@@ -201,10 +221,27 @@ def board(now: str | None = None):
     return [dict(r) for r in rows]
 
 @app.get("/api/audit")
-def audit(limit: int = 60):
+def audit(limit: int = 60, user: dict = Depends(current_user)):
+    """The append-only decision log, filtered to what this person may see.
+
+    Unscoped, this returned every decision for every driver at every facility to anyone
+    signed in. A driver may read the reasoning about their own loads - that is the point
+    of an auditable system - but not about anyone else's.
+    """
     con = db()
-    rows = con.execute("SELECT * FROM decision_audit ORDER BY audit_id DESC LIMIT ?",
-                       (limit,)).fetchall()
+    if user["role"] == "coordinator":
+        rows = con.execute("SELECT * FROM decision_audit ORDER BY audit_id DESC LIMIT ?",
+                           (limit,)).fetchall()
+    elif user["role"] == "driver":
+        rows = con.execute(
+            "SELECT a.* FROM decision_audit a JOIN shipments s ON s.shipment_id=a.shipment_id "
+            "WHERE s.driver_id=? ORDER BY a.audit_id DESC LIMIT ?",
+            (user["driver_id"], limit)).fetchall()
+    else:
+        rows = con.execute(
+            "SELECT a.* FROM decision_audit a JOIN shipments s ON s.shipment_id=a.shipment_id "
+            "WHERE s.destination_facility_id=? ORDER BY a.audit_id DESC LIMIT ?",
+            (user["facility_id"], limit)).fetchall()
     con.close()
     return [dict(r) for r in rows]
 
@@ -278,11 +315,12 @@ def metrics(user: dict = Depends(require_role("coordinator","warehouse")), ):
 
 
 @app.post("/api/reset")
-def reset():
+def reset(user: dict = Depends(require_role("coordinator"))):
+    # Destructive, and it had no guard at all: any signed-in driver could wipe the demo.
     reset_live(); return {"reset": True, "now": DEFAULT_NOW}
 
 @app.get("/api/meta")
-def meta():
+def meta(user: dict = Depends(current_user), ):
     con = db()
     n = lambda q: con.execute(q).fetchone()[0]
     out = {"now": DEFAULT_NOW,

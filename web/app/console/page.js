@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { board, why, audit, drivers, pending, decide } from "../../lib/api";
+import { useRouter } from "next/navigation";
+import { board, why, audit, drivers, pending, decide, alerts } from "../../lib/api";
+import { useSession } from "../../lib/session";
 
 const hm = (ts) => (ts || "").slice(11, 16);
 
@@ -14,6 +16,14 @@ function state(r) {
 }
 
 export default function Console() {
+  // The API refuses a driver on every coordinator endpoint, so this is not the control -
+  // it just stops a driver landing on a page of permission errors.
+  const { user } = useSession();
+  const router = useRouter();
+  useEffect(() => {
+    if (user && user.role === "driver") router.replace("/");
+  }, [user, router]);
+  if (user && user.role === "driver") return null;
   const [rows, setRows] = useState([]);
   const [log, setLog] = useState([]);
   const [ds, setDs] = useState([]);

@@ -1,5 +1,6 @@
 import "./globals.css";
 import Nav from "./nav";
+import { SessionProvider } from "../lib/session";
 
 export const metadata = {
   title: "SetuHaul Dock Desk",
@@ -12,7 +13,9 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" />
       </head>
-      <body><Nav />{children}</body>
+      <body>
+        <SessionProvider><Nav />{children}</SessionProvider>
+      </body>
     </html>
   );
 }

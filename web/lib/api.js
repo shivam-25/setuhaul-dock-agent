@@ -10,7 +10,14 @@ async function j(path, opts) {
     headers: { "content-type": "application/json", ...(opts?.headers || {}) },
   });
   if (r.status === 401) {
-    const e = new Error("not signed in"); e.unauthorized = true; throw e;
+    // Every 401 used to be flattened to "not signed in". That is right for an expired
+    // session, and wrong for the one 401 whose wording actually matters: a mistyped
+    // password on the sign-in form was reported as though the session had lapsed, which
+    // tells the person nothing and points them at the wrong problem. Keep the server's
+    // own sentence when it sent one.
+    let detail = "";
+    try { detail = JSON.parse(await r.text()).detail || ""; } catch {}
+    const e = new Error(detail || "not signed in"); e.unauthorized = true; throw e;
   }
   if (!r.ok) {
     let detail = await r.text();

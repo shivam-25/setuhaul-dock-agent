@@ -289,6 +289,55 @@ _LATER = re.compile(
     r"\blater (one|slot|option)s?\b", re.I)
 
 
+# "the second one works" is the brief's own example of what a form cannot take, and it
+# was the one shape of reply the agent could not read: an ordinal refers to a list the
+# driver can see and the extractor cannot, because it lives in the previous turn.
+_ORDINAL = re.compile(
+    r"\b(?:option|number|slot|no\.?|#)\s*([123])\b"
+    r"|\b(?:the\s+)?(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|last|final)\b"
+    r"(?=\s*(?:one|option|slot|dock|works|is fine|please|will do|for me|\b|$))", re.I)
+_ORD_WORD = {"first": 0, "1st": 0, "second": 1, "2nd": 1, "third": 2, "3rd": 2,
+             "fourth": 3, "4th": 3, "fifth": 4, "5th": 4}
+
+
+def last_shown_options(con, thread_id: str) -> list[str]:
+    """The option labels most recently offered in this thread, in the order shown.
+
+    Same source as `last_shown_latest_start`: box 11's audit row. The list the driver is
+    pointing at is the list we last printed, so the thread's own history is the state.
+    """
+    row = con.execute(
+        "SELECT detail_json FROM decision_audit WHERE thread_id=? AND box='11' "
+        "ORDER BY audit_id DESC LIMIT 1", (thread_id,)).fetchone()
+    if not row or not row[0]:
+        return []
+    try:
+        return [str(o) for o in (json.loads(row[0]).get("options") or [])]
+    except Exception:
+        return []
+
+
+def resolve_ordinal(message: str, shown: list[str]) -> tuple[int | None, int | None]:
+    """Map 'the second one' onto an index into the options last shown.
+
+    Returns (index, asked_for). `asked_for` is the 1-based position the driver named, so
+    a reference past the end can be refused by saying how many there were rather than
+    quietly booking something else - booking the first when they said the second would be
+    a false promise with their own words as evidence against us.
+    """
+    if not shown:
+        return None, None
+    m = _ORDINAL.search(message)
+    if not m:
+        return None, None
+    if m.group(1):
+        idx = int(m.group(1)) - 1
+    else:
+        w = m.group(2).lower()
+        idx = len(shown) - 1 if w in ("last", "final") else _ORD_WORD[w]
+    return (idx if 0 <= idx < len(shown) else None), idx + 1
+
+
 def last_shown_latest_start(con, thread_id: str, now: datetime) -> datetime | None:
     """The latest START among the options most recently offered in this thread, so that
     'later' can mean later than those rather than later than nothing."""
@@ -487,6 +536,40 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
                   dedupe=dk, now=now)
 
     intent = intent_override or facts.get("intent") or "UNKNOWN"
+
+    # "The second one works" points at a list the driver can see and the extractor
+    # cannot: it lives in the previous turn. Unresolved, the agent re-offered the same
+    # three slots and the driver could never actually book one - the brief names this
+    # exact phrasing as what a form fails on, and so did this.
+    pick_label, pick_overflow = None, None
+    _shown_before = last_shown_options(con, thread_id)
+    _idx, _asked = resolve_ordinal(message, _shown_before)
+    if _asked is not None:
+        if _idx is None:
+            pick_overflow = (_asked, len(_shown_before))
+            box(6, "ordinal", f"driver named option {_asked}, only {len(_shown_before)} "
+                              f"were offered")
+        else:
+            pick_label = _shown_before[_idx]
+            intent = "BOOK"
+            box(6, "ordinal", f"'{message.strip()[:40]}' -> option {_idx + 1} of "
+                              f"{len(_shown_before)}: {pick_label}")
+            audit(con, request_id=rid, box="6", decision="ordinal_resolved",
+                  shipment_id=shipment_id, thread_id=thread_id,
+                  detail={"said": message.strip()[:120], "index": _idx + 1,
+                          "of": len(_shown_before), "label": pick_label}, now=now)
+
+    # Naming a position that was never offered is refused outright. Booking the first
+    # when the driver said the third would be a false promise with their own words as
+    # the evidence against us.
+    if pick_overflow:
+        a, n = pick_overflow
+        txt = (f"You asked for option {a}, but I only offered you {n}. "
+               f"Tell me which of those {n} you want, or ask me for options again.")
+        box(11, "clarify", f"option {a} of {n} does not exist")
+        rec["route"] = "ask"; rec["reply"] = txt
+        rec["ms"] = int((time.time() - rec["t0"]) * 1000); return rec
+
 
     # CHECK_STATUS is a question about an existing booking, not a request for new slots.
     # The extractor has always returned it; until now the router collapsed everything that
@@ -700,7 +783,24 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
                 f"'both' is only ever correct for exactly two."
                 + (f" {dock_note}" if dock_note else ""))
     else:
+        # The driver's own words choose the slot. Ranking picks the default; an ordinal
+        # overrides it. Re-matched against the CURRENT feasible set, never trusted from
+        # the previous turn: the slot they pointed at may have been taken since, and
+        # "D2 12:00" from two minutes ago is a label, not a reservation.
         best = shown[0]
+        if pick_label:
+            import re as _re
+            _m = _re.search(r"(D[1-9]).*?(\d{1,2}):(\d{2})", pick_label)
+            if _m:
+                want_dock, want_hm = _m.group(1), f"{int(_m.group(2)):02d}:{_m.group(3)}"
+                hit = next((c for c in ok if c.dock_code == want_dock
+                            and f"{c.start:%H:%M}" == want_hm), None)
+                if hit is not None:
+                    best = hit
+                    box(8, "chosen", f"booking the option the driver named: {best.label}")
+                else:
+                    box(8, "chosen", f"{want_dock} {want_hm} is no longer feasible; "
+                                     f"falling back to the best remaining")
         got = claim(con, best.slot_ids, thread_id, shipment_id, now); con.commit()
         box(9, "hold", f"{best.label} held for 120s" if got else f"{best.label} just taken by another driver")
         if not got:

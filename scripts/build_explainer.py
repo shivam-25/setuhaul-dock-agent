@@ -25,12 +25,12 @@ if not CARDS.is_dir():
 VOICE, RATE = "Rishi", 172
 
 SLIDES = [
- "On a bad morning at SetuHaul, thirty-five drivers message inside half an hour. Six facilities, thirty-two dock doors, and not one live G P S feed. Every late truck needs another slot, and no slot can be given away twice.",
- "The whole design rests on one rule. The model proposes; the database decides. Eleven steps run for every message, and exactly two of them touch a language model: reading the driver's text, and writing the reply. Whether a slot is feasible, which driver gets it, and the booking itself, are never a model's call.",
- "Ten predicates decide feasibility, all of them in code. I checked them against a S Q L oracle written separately, and it reported precision of one and recall of one across seventy-two cases. It also caught nothing, because I had written the same wrong rule twice. An oracle proves agreement, not correctness.",
- "What is scarce here is not throughput. At peak this is one message a minute. It is a compatible dock at a given hour. So twenty threads reach for one dock door, ten times over. Every single run: one booking, nineteen drivers told immediately and offered the next slot, zero errors.",
- "Five defects survived a passing test suite and died the moment I used the product. A window that was open, but that the truck could not reach. A default that locked out fourteen of fifteen drivers. Three endpoints that would answer about any driver's load. A driver saying the second one works, and getting the first one booked. And a replay cache keyed on the day, answering a four P M question with the ten A M slots.",
- "It is deployed. Lambda behind a role scoped to Nova only, the interface on Vercel, the state in Postgres. A booking turn through the public U R L takes four point four seconds, and three point four of those are distance: an organisation policy forbids Lambda in the database's own region. A prompt injection is refused in one millisecond, before any model runs.",
+ "On a bad morning at SetuHaul, thirty-five drivers message inside half an hour. Six facilities, thirty-two dock doors, and no live G P S. Every late truck needs another slot, and no slot can be given away twice.",
+ "The whole design rests on one rule. The model proposes; the database decides. Eleven steps run per message, and exactly two touch a language model: reading the driver's text, and writing the reply. Whether a slot is feasible, who gets it, and the booking itself are never a model's call.",
+ "Ten predicates decide feasibility, all in code. I checked them against a separately written S Q L oracle, which reported precision of one and recall of one across seventy-two cases. It also caught nothing, because I had written the same wrong rule twice. An oracle proves agreement, not correctness.",
+ "What is scarce is not throughput. At peak this is one message a minute. It is a compatible dock at a given hour. So twenty threads reach for one dock door, ten times over. Every run: one booking, nineteen drivers offered the next slot, zero errors.",
+ "Five defects survived a passing test suite and died the moment I used the product. A window that was open, but unreachable. A default that locked out fourteen of fifteen drivers. Three endpoints that answered about any driver's load. A driver saying the second one works, and getting the first one booked. And a replay cache keyed on the day, answering four P M with the ten A M slots.",
+ "It is deployed: Lambda scoped to Nova only, the interface on Vercel, the state in Postgres. A booking turn through the public U R L takes four point four seconds, and three point four of those are distance, because a policy forbids Lambda in the database's region. A prompt injection is refused in one millisecond, before any model runs.",
 ]
 
 def demo_clip(stem):
@@ -43,10 +43,10 @@ def demo_clip(stem):
     return out
 
 DEMOS = [
- ("setuhaul-01-driver-journey",
-  "Here is the product. A driver signs in, sees only their own trips, and says they are about sixty minutes late. That is not taken as a time. It is buffered, and the booked window on dock D four turns out to close fifty minutes before the truck can reach it, so the promise is withdrawn rather than repeated. Three reachable windows are offered instead. The driver says the second one works, and the second one is what gets held."),
- ("setuhaul-02-operations",
-  "And the same morning from the dock office. Every truck today, grouped one card to a truck, worst first. The coordinator can ask what any truck can actually get, and see the slots that qualify alongside the rule that refused the rest. Underneath it, the append-only audit log: every decision, numbered by the step that made it."),
+ ("setuhaul-e2e-01-driver",
+  "Here is the product, driven against the deployed stack. A driver signs in, sees only their own trips, and says they are about sixty minutes late. That is not taken as a time. It is buffered, and the booked window on dock D four turns out to close fifty minutes before the truck can reach it, so the promise is withdrawn rather than repeated. Three reachable windows are offered, and none of them is reserved. The driver says the second one works, and the second one is what gets held."),
+ ("setuhaul-e2e-02-ops-warehouse",
+  "Nothing is promised yet. The hold sits in the warehouse queue, which says so in as many words: held, not confirmed. The warehouse accepts, and only now is it a booking. The coordinator can ask what any truck can actually get, and the slot the driver just took is already gone from that list. One append-only log carries the whole chain, each line numbered by the step that made it.")
 ]
 
 def dur(p):
@@ -72,16 +72,20 @@ for stem, line in DEMOS:
     n += 1; m4a = tts(n, line)
     vid = demo_clip(stem)
     va, aa = dur(vid), dur(m4a)
-    # The footage plays end to end, and the voice is padded with silence to match it. If
-    # the voice runs long, the last frame is held rather than the demo being cut short.
+    # The narration always runs longer than the capture, and holding the last frame for
+    # eight seconds looks like the video has frozen. Stretch the footage to the length of
+    # the voice instead: these are discrete screenshots roughly a second apart, so a
+    # slower cadence reads better rather than worse. tpad only covers the rounding.
     total = max(va, aa) + 0.5
+    stretch = max(1.0, aa / va)
     seg = S/f"{n:02d}.mp4"
     subprocess.run(["ffmpeg","-y","-v","error","-i",str(vid),"-i",str(m4a),
-        "-filter_complex",f"[0:v]tpad=stop_mode=clone:stop_duration=30[v];[1:a]apad[a]",
+        "-filter_complex",
+        f"[0:v]setpts={stretch:.4f}*PTS,tpad=stop_mode=clone:stop_duration=30[v];[1:a]apad[a]",
         "-map","[v]","-map","[a]","-t",f"{total:.2f}",
         "-c:v","libx264","-preset","medium","-pix_fmt","yuv420p","-r","30",
         "-c:a","aac","-b:a","160k",str(seg)],check=True)
-    parts.append(seg); print(f"demo  {stem[:28]:28} video {va:5.1f}s  voice {aa:5.1f}s  -> {total:5.1f}s")
+    parts.append(seg); print(f"demo  {stem[:28]:28} video {va:5.1f}s  voice {aa:5.1f}s  x{stretch:.2f}  -> {total:5.1f}s")
 
 with open(WORK / "concat.txt", "w") as fh:
     for seg in parts:

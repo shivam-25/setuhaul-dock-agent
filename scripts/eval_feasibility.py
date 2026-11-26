@@ -73,6 +73,7 @@ WHERE c.en IS NOT NULL
         WHERE z.dock_id=c.dock_id AND z.slot_start_ts < c.en AND z.slot_end_ts > c.st
           AND l.held_until > :now)                                                          -- F5
   AND c.st >= :ready                                                                        -- F6
+  AND substr(c.st,1,19) >= substr(:now,1,19)                                                -- F6b
   AND c.en <= :close                                                                        -- F8a
   AND substr(c.st,12,5) <= (SELECT v FROM laststart)                                        -- F8b
   AND NOT EXISTS (SELECT 1 FROM dock_status_events e WHERE e.dock_id=c.dock_id

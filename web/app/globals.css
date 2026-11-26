@@ -444,3 +444,24 @@ table.grid tbody tr:hover td { background: var(--raise); }
 .dcDay   { font-size: 10.5px; color: var(--muted); }
 
 .earlyfg { color: var(--free); }
+
+/* Grouped alerts: one card per truck, its problems listed inside it. */
+.alert .reasons { margin: 8px 0 0; padding-left: 18px; }
+.alert .reasons li { font-size: 14px; line-height: 1.5; color: var(--ink2); margin: 3px 0; }
+.alert .reasons li b { color: var(--ink); font-weight: 600; }
+.alert .arow { margin-top: 10px; }
+
+/* The coordinator's read-only answer to "what can this truck actually get?" */
+.opts { margin-top: 8px; border-left: 3px solid var(--line); padding-left: 12px; }
+.optlist { margin: 6px 0; padding-left: 18px; }
+.optlist li { font-size: 14px; line-height: 1.6; color: var(--ink2); }
+.optlist li b { color: var(--ink); }
+.small { font-size: 13px; }
+
+.chipbtn {
+  font: inherit; font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink2);
+  border-radius: 999px; padding: 4px 11px; cursor: pointer;
+}
+.chipbtn:hover { border-color: var(--ink3); color: var(--ink); }
+.chipbtn.on { background: var(--ink); border-color: var(--ink); color: var(--card); }

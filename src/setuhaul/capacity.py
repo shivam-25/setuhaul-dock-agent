@@ -213,6 +213,14 @@ def candidates(con, ctx: Ctx, now: datetime, *, include_failures=True) -> list[C
                 f.append(f"F6 starts {start:%H:%M}, before ready time {ctx.ready_at:%H:%M} "
                          f"(ETA {ctx.effective_eta:%H:%M} + {CONFIDENCE_BUFFER_MIN[ctx.confidence]}min "
                          f"{ctx.confidence}-confidence buffer)")
+            # F6b A window that has already opened is not a window you can promise.
+            #
+            # F6 gates the start against the truck's ready time, which says nothing
+            # about the clock. A truck that arrived early and waited in the yard was
+            # therefore offered 10:00-11:00 at 10:05 - sixty minutes of unload into
+            # fifty-five minutes of window. At 10:05 you book the 11:00 slot.
+            if start < now:
+                f.append(f"F6b window opened {start:%H:%M}, it is now {now:%H:%M}")
             if (end - start).total_seconds() / 60 < ctx.expected_unload_min:
                 f.append(f"F7 only {int((end-start).total_seconds()//60)}min contiguous, "
                          f"needs {ctx.expected_unload_min}min")

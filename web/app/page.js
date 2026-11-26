@@ -5,8 +5,7 @@ import { myTrips } from "../lib/api";
 import { useSession } from "../lib/session";
 import { BarChart, Progress, Stat, DemoClock, delayText } from "../components/charts";
 import { useTableControls, Toolbar, PRIORITIES, PRANK } from "../components/table";
-
-const LEVEL = { critical: "Act now", warn: "Check this", info: "For info", ok: "All good" };
+import AlertList from "../components/alerts";
 
 export default function Home() {
   const { user } = useSession();
@@ -57,10 +56,6 @@ export default function Home() {
   const ask = (shipment, text) =>
     router.push(`/chat?shipment=${shipment}${text ? `&q=${encodeURIComponent(text)}` : ""}`);
 
-  const everyAlert = d.trips.flatMap((t) =>
-    t.alerts.map((a) => ({ ...a, shipment: t.shipment_id, customer: t.customer_name })));
-  const needed = everyAlert.filter((a) => a.level !== "ok");
-
   return (
     <main className="pad">
       <header className="phead">
@@ -81,26 +76,7 @@ export default function Home() {
         <Stat n={d.summary.late}     label="running late" tone={d.summary.late ? "warn" : ""} />
       </section>
 
-      {needed.length > 0 && (
-        <section className="card alerts">
-          <h2>{ops ? "What needs someone" : "What needs you"}</h2>
-          {needed.map((a, i) => (
-            <div className={`alert ${a.level}`} key={i}>
-              <div className="atop">
-                <span className="tag">{LEVEL[a.level]}</span>
-                <b>{a.title}</b>
-                <span className="muted">{a.shipment} · {a.customer}</span>
-              </div>
-              <p>{a.body}</p>
-              {a.action === "ask" && !ops && (
-                <button className="ghost small" onClick={() => ask(a.shipment, a.ask)}>
-                  Ask about this →
-                </button>
-              )}
-            </div>
-          ))}
-        </section>
-      )}
+      <AlertList trips={d.trips} ops={ops} onAsk={ask} />
 
       {d.delay_chart.length > 0 && (
         <section className="card">

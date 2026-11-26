@@ -44,26 +44,41 @@ class Candidate:
         return f"{self.dock_code} {self.start:%H:%M}-{self.end:%H:%M}"
 
 def load_ctx(con, shipment_id, *, thread_id=None, now=None) -> Ctx:
+    """One query, not three.
+
+    This ran three statements - the shipment, its latest exception, and whether it already
+    holds a commitment - and is itself called several times per turn, once for the driver
+    and once per outranking contender. Against a database a region away that was six or
+    nine avoidable round trips at roughly 160 ms each. Correlated subqueries return the
+    same three answers in one.
+    """
     r = con.execute("""
-        SELECT s.shipment_id,s.destination_facility_id,s.required_dock_type,s.load_weight_kg,
-               s.expected_unload_min,s.priority_code,
-               COALESCE(v.effective_eta_ts,s.original_eta_ts) AS eta,
-               COALESCE(v.eta_confidence,'HIGH') AS conf
-        FROM shipments s LEFT JOIN v_latest_eta v ON v.shipment_id=s.shipment_id
-        WHERE s.shipment_id=?""", (shipment_id,)).fetchone()
+        SELECT s.shipment_id, s.destination_facility_id, s.required_dock_type,
+               s.load_weight_kg, s.expected_unload_min, s.priority_code,
+               COALESCE(v.effective_eta_ts, s.original_eta_ts) AS eta,
+               COALESCE(v.eta_confidence, 'HIGH')              AS conf,
+               (SELECT e.earliest_acceptable_ts FROM driver_exceptions e
+                 WHERE e.shipment_id = s.shipment_id AND e.exception_status <> 'DUPLICATE'
+                 ORDER BY e.reported_at DESC LIMIT 1)          AS earliest,
+               (SELECT e.latest_acceptable_ts FROM driver_exceptions e
+                 WHERE e.shipment_id = s.shipment_id AND e.exception_status <> 'DUPLICATE'
+                 ORDER BY e.reported_at DESC LIMIT 1)          AS latest,
+               (SELECT e.declared_eta_ts FROM driver_exceptions e
+                 WHERE e.shipment_id = s.shipment_id AND e.exception_status <> 'DUPLICATE'
+                 ORDER BY e.reported_at DESC LIMIT 1)          AS declared,
+               (SELECT COUNT(*) FROM appointments a
+                 WHERE a.shipment_id = s.shipment_id AND a.is_current = 1
+                   AND a.appointment_status IN ('PENDING_CONFIRMATION','CONFIRMED'))
+                                                               AS commitment_n
+        FROM shipments s
+        LEFT JOIN v_latest_eta v ON v.shipment_id = s.shipment_id
+        WHERE s.shipment_id = ?""", (shipment_id,)).fetchone()
     if not r: raise ValueError(f"unknown shipment {shipment_id}")
-    e = con.execute("""SELECT earliest_acceptable_ts,latest_acceptable_ts,declared_eta_ts
-                       FROM driver_exceptions
-                       WHERE shipment_id=? AND exception_status<>'DUPLICATE'
-                       ORDER BY reported_at DESC LIMIT 1""", (shipment_id,)).fetchone()
-    commitment = con.execute(
-        "SELECT 1 FROM appointments WHERE shipment_id=? AND is_current=1 AND appointment_status IN "
-        "('PENDING_CONFIRMATION','CONFIRMED') LIMIT 1", (shipment_id,)).fetchone() is not None
-    eta = dt_(e[2]) if (e and e[2]) else dt_(r[6])
+    eta = dt_(r[10]) if r[10] else dt_(r[6])
     return Ctx(r[0], r[1], r[2], r[3], r[4], r[5], eta, r[7],
-               dt_(e[0]) if e and e[0] else None,
-               dt_(e[1]) if e and e[1] else None,
-               commitment, now, thread_id)
+               dt_(r[8]) if r[8] else None,
+               dt_(r[9]) if r[9] else None,
+               bool(r[11]), now, thread_id)
 
 def _rules(con, facility_id) -> dict:
     return {k: v for k, v in con.execute(
@@ -72,17 +87,45 @@ def _rules(con, facility_id) -> dict:
 def candidates(con, ctx: Ctx, now: datetime, *, include_failures=True) -> list[Candidate]:
     """Every slot chain on every dock at the facility, each with its rejection reasons.
     F9 reads dock_status_events DIRECTLY, never slot_status - see audit D05."""
-    rules = _rules(con, ctx.facility_id)
+    # Within one turn, candidates() runs at least twice - once for this driver and once
+    # per outranking contender inside the priority gate - and every facility-wide read it
+    # makes is identical between those calls. Only ctx differs. Memoising the facility
+    # snapshot on the connection for this instant removes the repeats; across a network
+    # database each one cost a round trip.
+    #
+    # Locks are cached WITH their holding thread and filtered per ctx below, because
+    # "held by someone else" depends on who is asking and must not be baked into the cache.
+    # sqlite3.Connection has no __dict__, so the cache cannot attach there - and it does
+    # not need to. SQLite is in-process and a repeat read costs microseconds; the cache
+    # exists for the network case. On SQLite this falls back to a per-call dict, which
+    # simply never hits, and the behaviour is identical either way.
+    _key = ("_fac_snap", ctx.facility_id, ts(now))
+    snap = getattr(con, "_setuhaul_snap", None)
+    if not snap or snap.get("key") != _key:
+        snap = {"key": _key}
+        try:
+            con._setuhaul_snap = snap
+        except AttributeError:
+            pass
+    rules = snap.get("rules")
+    if rules is None:
+        rules = snap["rules"] = _rules(con, ctx.facility_id)
     # No rule at this facility means no heavy-dock mandate here, not Jaipur's 25000.
     heavy_kg = int(rules["HEAVY_DOCK_REQUIRED_KG"]) if "HEAVY_DOCK_REQUIRED_KG" in rules \
                else 10**9
-    fac = con.execute("SELECT open_time,close_time FROM facilities WHERE facility_id=?",
-                      (ctx.facility_id,)).fetchone()
+    fac = snap.get("fac")
+    if fac is None:
+        fac = snap["fac"] = con.execute(
+            "SELECT open_time,close_time FROM facilities WHERE facility_id=?",
+            (ctx.facility_id,)).fetchone()
     # If this facility sets no last-start rule, the limit is its own closing time. Falling back to
     # a constant would apply one facility's rule (Jaipur's 21:00) to another. Rules are per-facility.
     last_start = rules.get("LAST_NEW_START_TIME") or fac[1]
-    docks = con.execute("SELECT dock_id,dock_code,dock_type,max_vehicle_weight_kg FROM docks "
-                        "WHERE facility_id=?", (ctx.facility_id,)).fetchall()
+    docks = snap.get("docks")
+    if docks is None:
+        docks = snap["docks"] = con.execute(
+            "SELECT dock_id,dock_code,dock_type,max_vehicle_weight_kg FROM docks "
+            "WHERE facility_id=?", (ctx.facility_id,)).fetchall()
 
     # Prefetch, once per facility, what used to be three queries per slot chain.
     #
@@ -96,34 +139,53 @@ def candidates(con, ctx: Ctx, now: datetime, *, include_failures=True) -> list[C
     # authoritative arbiter is unchanged: claim() takes the lock atomically and the
     # partial unique index refuses a second active appointment on a slot. Reading in bulk
     # changes how fresh the OFFER is, never whether the COMMIT can double-book.
-    taken_rows = con.execute(
+    taken_ids = snap.get("taken")
+    if taken_ids is None:
+      taken_rows = con.execute(
         f"SELECT a.slot_id FROM appointments a "
         f"JOIN appointment_slots sl ON sl.slot_id = a.slot_id "
         f"JOIN docks dk ON dk.dock_id = sl.dock_id "
         f"WHERE dk.facility_id = ? AND a.appointment_status IN {ACTIVE}",
         (ctx.facility_id,)).fetchall()
-    taken_ids = {r[0] for r in taken_rows}
+      taken_ids = snap["taken"] = {r[0] for r in taken_rows}
 
-    locked_rows = con.execute(
-        "SELECT l.slot_id FROM slot_locks l "
-        "JOIN appointment_slots sl ON sl.slot_id = l.slot_id "
-        "JOIN docks dk ON dk.dock_id = sl.dock_id "
-        "WHERE dk.facility_id = ? AND l.held_until > ? AND l.thread_id IS NOT ?",
-        (ctx.facility_id, ts(now), ctx.thread_id)).fetchall()
-    locked_ids = {r[0] for r in locked_rows}
+    locks = snap.get("locks")
+    if locks is None:
+        locks = snap["locks"] = [
+            (r[0], r[1]) for r in con.execute(
+                "SELECT l.slot_id, l.thread_id FROM slot_locks l "
+                "JOIN appointment_slots sl ON sl.slot_id = l.slot_id "
+                "JOIN docks dk ON dk.dock_id = sl.dock_id "
+                "WHERE dk.facility_id = ? AND l.held_until > ?",
+                (ctx.facility_id, ts(now))).fetchall()]
+    # "Held by another conversation" depends on who is asking, so filter here, not in SQL.
+    locked_ids = {sid for sid, holder in locks if holder != ctx.thread_id}
 
-    outage_rows = con.execute(
+    outages = snap.get("outages")
+    if outages is None:
+      outage_rows = con.execute(
         "SELECT e.dock_id, e.dock_event_id, e.event_type, e.event_start_ts, e.event_end_ts "
         "FROM dock_status_events e JOIN docks dk ON dk.dock_id = e.dock_id "
         "WHERE dk.facility_id = ?", (ctx.facility_id,)).fetchall()
-    outages: dict[str, list] = {}
-    for r in outage_rows:
+      outages = snap["outages"] = {}
+      for r in outage_rows:
         outages.setdefault(r[0], []).append((r[1], r[2], r[3], r[4]))
+
+    # One slots query for the facility rather than one per dock. Six docks meant six round
+    # trips at about 160 ms each, twice per turn once the priority gate also calls this.
+    all_slots = snap.get("slots")
+    if all_slots is None:
+        all_slots = snap["slots"] = {}
+        for r in con.execute(
+                "SELECT sl.dock_id, sl.slot_id, sl.slot_start_ts, sl.slot_end_ts, sl.slot_status "
+                "FROM appointment_slots sl JOIN docks dk ON dk.dock_id = sl.dock_id "
+                "WHERE dk.facility_id = ? ORDER BY sl.dock_id, sl.slot_start_ts",
+                (ctx.facility_id,)).fetchall():
+            all_slots.setdefault(r[0], []).append((r[1], r[2], r[3], r[4]))
 
     out: list[Candidate] = []
     for dock_id, dock_code, dock_type, dock_max_kg in docks:
-        slots = con.execute("SELECT slot_id,slot_start_ts,slot_end_ts,slot_status FROM appointment_slots "
-                            "WHERE dock_id=? ORDER BY slot_start_ts", (dock_id,)).fetchall()
+        slots = all_slots.get(dock_id, [])
         for i, (sid, s_start, s_end, s_status) in enumerate(slots):
             start = dt_(s_start)
             # F7: walk forward over CONTIGUOUS slots until the unload duration is covered (DEFECT-1)
@@ -394,39 +456,49 @@ def open_alerts(con, limit: int = 40) -> list[dict]:
 
 def operations_metrics(con) -> dict:
     """The measures the brief says the submission is judged on, computed from the audit
-    rather than asserted in prose."""
-    n = lambda q, p=(): (con.execute(q, p).fetchone() or [0])[0]
-    # A turn that only asks a question returns before request_log is written, so counting
-    # clarifications there always yields zero. decision_audit records every turn, asked or
-    # answered, which is why the counts come from there.
-    auto    = n("SELECT COUNT(*) FROM request_log WHERE route='auto'")
-    human   = n("SELECT COUNT(*) FROM request_log WHERE route='human'")
-    asked   = n("SELECT COUNT(*) FROM decision_audit WHERE decision IN "
-                "('ambiguous_shipment','asked_intent','contradictory_window')")
+    rather than asserted in prose.
+
+    One query, not fourteen. The service runs in ap-southeast-2 and the database in
+    ap-south-1 - an organisation policy forbids Lambda in ap-south-1, so they cannot be
+    co-located and every round trip costs about 160 ms. Fourteen separate COUNT statements
+    made this endpoint take 2.8 seconds while doing almost no work. Scalar subqueries in a
+    single SELECT return the same numbers in one trip.
+    """
+    row = con.execute("""
+        SELECT
+          (SELECT COUNT(*) FROM request_log WHERE route='auto')                AS auto_n,
+          (SELECT COUNT(*) FROM request_log WHERE route='human')               AS human_n,
+          (SELECT COUNT(*) FROM decision_audit WHERE decision IN
+             ('ambiguous_shipment','asked_intent','contradictory_window'))     AS asked_n,
+          (SELECT COUNT(*) FROM appointment_slots WHERE slot_status='OPEN')    AS slots_open,
+          (SELECT COUNT(DISTINCT slot_id) FROM appointments WHERE
+             appointment_status IN ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS'))
+                                                                               AS used_n,
+          (SELECT COUNT(*) FROM decision_audit WHERE decision='duplicate_replayed')
+                                                                               AS dupes,
+          (SELECT COUNT(*) FROM decision_audit WHERE decision='escalated')     AS escal,
+          (SELECT COUNT(*) FROM (SELECT slot_id FROM appointments WHERE appointment_status
+             IN ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS')
+             GROUP BY slot_id HAVING COUNT(*) > 1) x)                          AS conflicts
+    """).fetchone()
+    d = dict(row)
+    auto, human, asked = d["auto_n"], d["human_n"], d["asked_n"]
     replies = auto + human + asked
-    slots   = n("SELECT COUNT(*) FROM appointment_slots WHERE slot_status='OPEN'")
-    used    = n("SELECT COUNT(DISTINCT slot_id) FROM appointments WHERE appointment_status "
-                "IN ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS')")
-    dupes   = n("SELECT COUNT(*) FROM decision_audit WHERE decision='duplicate_replayed'")
-    escal   = n("SELECT COUNT(*) FROM decision_audit WHERE decision='escalated'")
-    # A double allocation would be two active appointments on one slot. The partial unique
-    # index makes this impossible; reporting it is how we show that, not assume it.
-    conflicts = n("SELECT COUNT(*) FROM (SELECT slot_id FROM appointments WHERE "
-                  "appointment_status IN ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS') "
-                  "GROUP BY slot_id HAVING COUNT(*) > 1) x")
-    return {"turns": replies,
-            "resolved_without_human": auto,
-            "clarification_turns": asked,
-            "handed_to_human": human,
-            "automation_share": round(auto / replies, 3) if replies else None,
-            "clarifications_per_turn": round(asked / replies, 3) if replies else None,
-            "slots_open": slots, "slots_allocated": used,
-            "slot_utilisation": round(used / slots, 3) if slots else None,
-            "duplicates_replayed": dupes,
-            "escalations": escal,
-            "conflicting_allocations": conflicts,
-            **{f"wait_{k}": v for k, v in waiting_times(con).items()
-               if k != "still_waiting"}}
+    slots, used = d["slots_open"], d["used_n"]
+    out = {"turns": replies,
+           "resolved_without_human": auto,
+           "clarification_turns": asked,
+           "handed_to_human": human,
+           "automation_share": round(auto / replies, 3) if replies else None,
+           "clarifications_per_turn": round(asked / replies, 3) if replies else None,
+           "slots_open": slots, "slots_allocated": used,
+           "slot_utilisation": round(used / slots, 3) if slots else None,
+           "duplicates_replayed": d["dupes"],
+           "escalations": d["escal"],
+           "conflicting_allocations": d["conflicts"]}
+    out.update({f"wait_{k}": v for k, v in waiting_times(con).items() if k != "still_waiting"})
+    return out
+
 
 # ---------------------------------------------------------------- D7: scarce capacity
 # "How do you order simultaneous requests when capacity runs short?"
@@ -450,11 +522,24 @@ def operations_metrics(con) -> dict:
 # decision with a human in it (see Boundaries: "whether a booking committed in the
 # system of record").
 
-def contenders(con, ctx: Ctx, now: datetime) -> list[Ctx]:
+def contenders(con, ctx: Ctx, now: datetime, *, outranking_only: bool = False) -> list[Ctx]:
     """Other shipments genuinely competing for this facility right now: in an open
     exception, not yet served, arriving in a comparable window. Not every shipment in the
-    table - a truck that arrived yesterday is not contending for tonight."""
-    rows = con.execute("""
+    table - a truck that arrived yesterday is not contending for tonight.
+
+    outranking_only filters by priority in SQL. The gate only ever looks at trucks that
+    outrank this one, and each Ctx costs three queries to build, so loading the rest was
+    pure latency.
+    """
+    better = [k for k, v in PRIORITY_RANK.items()
+              if v < PRIORITY_RANK.get(ctx.priority_code, 9)]
+    extra, params = "", [ctx.facility_id, ctx.shipment_id]
+    if outranking_only:
+        if not better:
+            return []
+        extra = f" AND s.priority_code IN ({','.join('?' * len(better))})"
+        params += better
+    rows = con.execute(f"""
         SELECT DISTINCT s.shipment_id
         FROM shipments s
         JOIN driver_exceptions e ON e.shipment_id = s.shipment_id
@@ -464,7 +549,8 @@ def contenders(con, ctx: Ctx, now: datetime) -> list[Ctx]:
           AND NOT EXISTS (SELECT 1 FROM appointments a
                           WHERE a.shipment_id = s.shipment_id AND a.is_current = 1
                             AND a.appointment_status IN ('CONFIRMED','IN_PROGRESS'))
-        """, (ctx.facility_id, ctx.shipment_id)).fetchall()
+        {extra}
+        """, params).fetchall()
     out = []
     for r in rows:
         sid = r[0] if not isinstance(r, dict) else r["shipment_id"]
@@ -482,9 +568,7 @@ def priority_gate(con, ctx: Ctx, ranked: list[Candidate], now: datetime) -> tupl
     higher-priority shipment it was protected for, so decision_audit can answer
     "why did driver B not get 18:00?" and so priority-policy violations are countable.
     """
-    mine = PRIORITY_RANK.get(ctx.priority_code, 9)
-    higher = [c for c in contenders(con, ctx, now)
-              if PRIORITY_RANK.get(c.priority_code, 9) < mine]
+    higher = contenders(con, ctx, now, outranking_only=True)
     if not higher or len(ranked) <= 1:
         # Nobody outranks this driver here, or this is their only option. Either way the
         # policy has nothing to say and first-come-first-served stands.

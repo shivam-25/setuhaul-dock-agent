@@ -55,6 +55,8 @@ async def gate(request, call_next):
         return JSONResponse({"detail": "missing or wrong x-demo-token"}, status_code=401)
     return await call_next(request)
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 def reset_live():
     for s in ("", "-wal", "-shm"):
         p = pathlib.Path(str(LIVE) + s)
@@ -63,9 +65,31 @@ def reset_live():
     shutil.copy2(BASE, LIVE)
     c = sqlite3.connect(LIVE); c.execute("PRAGMA journal_mode=WAL"); c.commit(); c.close()
 
-if not LIVE.exists(): reset_live()
+# Only the SQLite path needs a writable working copy. On Postgres there is nothing to
+# build, and attempting it fails at import: the Lambda bundle is mounted read-only.
+if not os.environ.get("DATABASE_URL") and not LIVE.exists():
+    reset_live()
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# One Postgres connection per warm container, not per request.
+#
+# This function is in ap-southeast-2 and the database is in ap-south-1, because an
+# organisation service control policy denies Lambda in ap-south-1 and the two cannot be
+# co-located. At roughly 90 ms between them, a fresh connect costs about ten round trips
+# for TLS and SCRAM before a single query runs - which made a plain metrics read take five
+# seconds. A Lambda execution environment is reused across invocations, so the connection
+# should be too.
+_PG = None
+
+class _Keep:
+    """Hands back the shared connection and swallows close(), because every call site
+    closes in a finally block. Rolling back on release is what stops one request's aborted
+    transaction from poisoning the next one that reuses the container."""
+    def __init__(self, con): self._c = con
+    def __getattr__(self, k): return getattr(self._c, k)
+    def close(self):
+        try: self._c.rollback()
+        except Exception: pass
+
 
 def db():
     """Postgres in any deployed environment, SQLite only for a local file run.
@@ -75,9 +99,19 @@ def db():
     same slot twice. Reserved concurrency caps simultaneous executions, not warm
     environments, so no Lambda setting could fix it. One shared Postgres does.
     """
+    global _PG
     if DATABASE_URL:
         from setuhaul.db import connect
-        return connect(DATABASE_URL, row_factory=True)
+        if _PG is not None:
+            try:
+                _PG.execute("SELECT 1").fetchone()      # cheap liveness probe
+                return _Keep(_PG)
+            except Exception:
+                try: _PG.close()
+                except Exception: pass
+                _PG = None
+        _PG = connect(DATABASE_URL, row_factory=True)
+        return _Keep(_PG)
     con = sqlite3.connect(LIVE, timeout=10)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA busy_timeout=5000")

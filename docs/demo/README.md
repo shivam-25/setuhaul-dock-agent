@@ -6,7 +6,7 @@ real round trip.
 
 | file | what it is |
 |---|---|
-| `setuhaul-explainer.mp4` | 2m57s narrated explainer, 1280×720. Six slides of argument, then the product itself: the driver journey end to end, then the coordinator's view. Rebuilt by `scripts/build_explainer_cards.py` then `scripts/build_explainer.py` (macOS `say` + ffmpeg); the demo footage is the two GIFs in `docs/media`, which are real captures of the deployed app. |
+| `setuhaul-explainer.mp4` | 4m00s narrated explainer, 1280x720. Six slides of argument, then four acts driven live against the deployed stack: a driver's journey, a second driver's queries and the three it refuses, the warehouse accepting, and the coordinator's fleet view. Rebuilt by `scripts/build_explainer_cards.py` then `scripts/build_explainer.py`; the footage is the `setuhaul-e2e-*` GIFs in `docs/media`. |
 | `setuhaul-demo-clean.mp4` | 43s silent screen capture of the full QA run, 1280×720. |
 | `setuhaul-demo.gif` | The same run as a GIF, for inline preview. |
 
@@ -73,3 +73,32 @@ replayed the stored reply in 1 ms instead of calling the model. That key has sin
 straightforward rather than a fight with the cache. All eight report `37 of 79`, name
 all three slots with times, and pass every check. Oracle eval 1.0000 / 1.0000 and race test 10/10
 still pass.
+
+## The four demo acts
+
+Each captured in a real browser against <https://setuhaul-dock-desk.vercel.app> on 26 Nov 2026,
+signed in as the actual account named - not simulated from one session.
+
+| act | signed in as | what it shows |
+|---|---|---|
+| `setuhaul-e2e-01-driver.gif` | `drv006` Manoj Sharma, driver | D4 10:00-11:00 refused as unreachable (ready 11:50), three reachable windows offered with nothing reserved, "the second one works" resolved to D1 13:00-14:00 and held |
+| `setuhaul-e2e-04-queries-failures.gif` | `drv012` Arjun Das, driver | A status question answered as status; an explicit booking taking a hold; two constraints that cannot both hold, met with a question rather than a shortage report (1.7s); a prompt injection refused and handed to a person (0.5s); a gate arrival |
+| `setuhaul-e2e-03-warehouse.gif` | `wh-jai` Neha Bansal, warehouse | The acceptance queue scoped to FAC-JAI-01 - six docks where the coordinator sees nine - and the hold becoming a booking, audited as the warehouse rather than the agent |
+| `setuhaul-e2e-02-ops-warehouse.gif` | `ops`, coordinator | Every truck today grouped one card per truck, "what can it get?" reporting 79 chains checked, and the append-only log carrying the whole chain |
+
+The explainer trims the first 6.4s of the coordinator capture, which contains an Accept that the
+warehouse act now covers properly; the same booking accepted twice reads as a mistake rather than
+as two roles.
+
+## One case the UI cannot reach
+
+Box 5 asks which trip a driver means when they have more than one open and name none. The scenario
+run exercises it (L7, `scripts/run_scenarios.py`) and `docs/TRANSCRIPTS.md` records it. It cannot be
+filmed, because `web/app/chat/page.js` renders the trip selector from the driver's active trips with
+no blank option and defaults to the first, so the request always carries a `shipment_id`.
+
+That is arguably the better product - removing an ambiguity beats asking about it - but it is not
+free. A driver with two trips who does not notice the selector asks about whichever one happened to
+be first. Either the selector needs a "not sure which" option that omits `shipment_id`, or the
+default needs to be no selection. Recorded here rather than quietly left, because the branch is
+tested, documented, and unreachable.

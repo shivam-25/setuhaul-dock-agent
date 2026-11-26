@@ -238,3 +238,76 @@ def audit(con, *, request_id, box, decision, thread_id=None, shipment_id=None,
                 (ts(now or datetime.now()), request_id, thread_id, shipment_id, actor, box,
                  decision, json.dumps(detail) if detail else None, POLICY_VERSION, latency_ms))
     con.commit()
+
+# ---------------------------------------------------------------- the warehouse side
+def pending_acceptances(con) -> list[dict]:
+    """Every booking the agent has made that the warehouse has not yet answered.
+
+    A chain writes one primary row (is_current=1) plus APT-x-O1.. overflow rows, so group
+    by the primary and span the whole chain - otherwise a 2-slot booking shows as one hour.
+    """
+    rows = con.execute("""
+        SELECT a.appointment_id, a.shipment_id, s.driver_id, d.dock_code, f.facility_id,
+               MIN(sl.slot_start_ts) AS starts, MAX(sl.slot_end_ts) AS ends, a.booked_at,
+               s.priority_code, s.required_dock_type, s.expected_unload_min
+        FROM appointments a
+        JOIN appointment_slots sl ON sl.slot_id = a.slot_id
+        JOIN docks d       ON d.dock_id = sl.dock_id
+        JOIN facilities f  ON f.facility_id = d.facility_id
+        JOIN shipments s   ON s.shipment_id = a.shipment_id
+        WHERE a.appointment_status = 'PENDING_CONFIRMATION' AND a.is_current = 1
+        GROUP BY a.appointment_id
+        ORDER BY starts""").fetchall()
+    return [dict(r) if not isinstance(r, tuple) else r for r in rows]
+
+
+def decide_appointment(con, appointment_id: str, *, accept: bool, actor: str,
+                       reason: str | None, now: datetime) -> dict:
+    """The warehouse accepts or rejects a booking the agent made.
+
+    Only PENDING_CONFIRMATION may move, and the UPDATE is itself conditional on that status,
+    so two coordinators clicking at once cannot both win - the second changes 0 rows and is
+    told the booking was already decided. Overflow rows of a chain move with the primary.
+    """
+    row = con.execute(
+        "SELECT appointment_id, shipment_id, appointment_status FROM appointments "
+        "WHERE appointment_id=?", (appointment_id,)).fetchone()
+    if not row:
+        return {"ok": False, "error": "no such appointment", "appointment_id": appointment_id}
+    status_now = row[2] if isinstance(row, tuple) else row["appointment_status"]
+    shipment_id = row[1] if isinstance(row, tuple) else row["shipment_id"]
+    if status_now != "PENDING_CONFIRMATION":
+        # Idempotent: saying yes twice is not an error, it is the same outcome.
+        return {"ok": False, "already": status_now, "appointment_id": appointment_id,
+                "shipment_id": shipment_id,
+                "error": f"already {status_now}; only a pending booking can be decided"}
+
+    new = "CONFIRMED" if accept else "CANCELLED"
+    ref = f"WH-{uuid.uuid4().hex[:8].upper()}" if accept else None
+    ids = (appointment_id, appointment_id + "-O%")
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        cur = con.execute(
+            "UPDATE appointments SET appointment_status=?, confirmed_at=?, cancelled_at=?, "
+            "cancellation_reason=?, warehouse_confirmation_ref=?, is_current=?, updated_at=? "
+            "WHERE (appointment_id=? OR appointment_id LIKE ?) "
+            "  AND appointment_status='PENDING_CONFIRMATION'",
+            (new, ts(now) if accept else None, None if accept else ts(now),
+             None if accept else (reason or "WAREHOUSE_REJECTED"), ref,
+             1 if accept else 0, ts(now), *ids))
+        if cur.rowcount == 0:
+            con.rollback()
+            return {"ok": False, "error": "status changed under us; nothing updated",
+                    "appointment_id": appointment_id}
+        if not accept:
+            # A rejected slot must become bookable again immediately, or the rejection
+            # silently destroys capacity for the rest of the day.
+            con.execute("DELETE FROM slot_locks WHERE slot_id IN "
+                        "(SELECT slot_id FROM appointments WHERE appointment_id=? "
+                        " OR appointment_id LIKE ?)", ids)
+        con.commit()
+    except Exception:
+        con.rollback()
+        raise
+    return {"ok": True, "appointment_id": appointment_id, "shipment_id": shipment_id,
+            "status": new, "warehouse_ref": ref, "rows": cur.rowcount}

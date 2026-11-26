@@ -15,7 +15,8 @@ from pydantic import BaseModel
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from setuhaul.agent import handle
-from setuhaul.capacity import dt_, load_ctx, candidates, rank_options
+from setuhaul.capacity import (dt_, load_ctx, candidates, rank_options, pending_acceptances,
+                               decide_appointment, audit as write_audit)
 
 BASE = pathlib.Path(os.environ.get("SETUHAUL_BASE_DB", ROOT / "work" / "setuhaul_work.db"))
 LIVE = pathlib.Path(os.environ.get("SETUHAUL_LIVE_DB", ROOT / "work" / "live.db"))
@@ -175,6 +176,54 @@ def audit(limit: int = 60):
                        (limit,)).fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+class Decision(BaseModel):
+    appointment_id: str
+    accept: bool
+    actor: str = "warehouse"
+    reason: str | None = None
+    now: str | None = None
+
+
+@app.get("/api/pending")
+def pending():
+    """What the warehouse has been asked to accept and has not answered."""
+    con = db()
+    try:
+        return pending_acceptances(con)
+    finally:
+        con.close()
+
+
+@app.post("/api/decide")
+def decide(body: Decision):
+    """The other half of 'waiting for warehouse to accept'.
+
+    Until this existed every booking told the driver it was awaiting acceptance and nothing
+    in the system could ever accept it. The decision is audited like any agent decision, with
+    actor set to the warehouse rather than the agent.
+    """
+    now = dt_(body.now or DEFAULT_NOW)
+    con = db()
+    try:
+        out = decide_appointment(con, body.appointment_id, accept=body.accept,
+                                 actor=body.actor, reason=body.reason, now=now)
+        # decision_audit.actor is CHECK-constrained to ('agent','human','system'). A warehouse
+        # decision is made by a person, so the column says 'human' and the role it was made in
+        # goes in the detail, where it is still queryable. Widening the CHECK is a schema change
+        # on the supplied snapshot, which this project does not make.
+        write_audit(con, request_id=f"WH-{body.appointment_id}",
+                    box="12", actor="human",
+                    decision="warehouse_accepted" if body.accept else "warehouse_rejected",
+                    shipment_id=out.get("shipment_id"),
+                    detail={**{k: v for k, v in out.items() if k != "shipment_id"},
+                            "role": body.actor, "reason": body.reason}, now=now)
+        if not out.get("ok") and not out.get("already"):
+            raise HTTPException(409, out.get("error", "could not decide"))
+        return out
+    finally:
+        con.close()
+
 
 @app.post("/api/reset")
 def reset():

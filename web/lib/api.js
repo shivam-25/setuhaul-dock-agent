@@ -22,3 +22,5 @@ export const why    = (s)    => j(`/api/why/${s}`);
 export const audit  = ()     => j("/api/audit?limit=40");
 export const drivers= ()     => j("/api/drivers");
 export const meta   = ()     => j("/api/meta");
+export const pending= ()     => j("/api/pending");
+export const decide = (b)    => j("/api/decide", { method: "POST", body: JSON.stringify(b) });

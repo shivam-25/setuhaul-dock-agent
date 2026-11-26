@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { board, why, audit, drivers } from "../../lib/api";
+import { board, why, audit, drivers, pending, decide } from "../../lib/api";
 
 const hm = (ts) => (ts || "").slice(11, 16);
 
@@ -20,13 +20,26 @@ export default function Console() {
   const [pick, setPick] = useState("");
   const [w, setW] = useState(null);
   const [err, setErr] = useState(null);
+  const [pend, setPend] = useState([]);
+  const [busy, setBusy] = useState("");
 
   const refresh = () => {
     board().then(setRows).catch((e) => setErr(String(e)));
     audit().then(setLog).catch(() => {});
+    pending().then(setPend).catch(() => {});
   };
   useEffect(() => { refresh(); drivers().then(setDs).catch(() => {}); }, []);
   useEffect(() => { if (pick) why(pick).then(setW).catch((e) => setErr(String(e))); }, [pick]);
+
+  const act = async (id, accept) => {
+    setBusy(id); setErr(null);
+    try {
+      const out = await decide({ appointment_id: id, accept, actor: "warehouse",
+                                 reason: accept ? null : "WAREHOUSE_REJECTED" });
+      if (out.already) setErr(`${id} was already ${out.already}`);
+    } catch (e) { setErr(String(e)); }
+    finally { setBusy(""); refresh(); }
+  };
 
   const facs = [...new Set(rows.map((r) => r.facility_id))];
   const times = [...new Set(rows.map((r) => hm(r.slot_start_ts)))].sort();
@@ -49,6 +62,46 @@ export default function Console() {
                                  color: "var(--muted)" }}>
             <i style={{ width: 11, height: 11, background: c, borderRadius: 2 }} />{l}</span>))}
       </div>
+
+
+      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div>
+          <p className="eyebrow">warehouse</p>
+          <h2>Waiting for you to accept</h2>
+          <p style={{ color: "var(--muted)", fontSize: 13, margin: "4px 0 0" }}>
+            The agent holds a slot and tells the driver it is <em>not</em> confirmed. It stays
+            that way until somebody here answers. Nothing is promised to the driver in between.
+          </p>
+        </div>
+        {pend.length === 0
+          ? <p className="mono" style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
+              nothing awaiting a decision</p>
+          : <div className="scroll"><table style={{ minWidth: 700 }}>
+              <thead><tr><th>shipment</th><th>dock</th><th>window</th><th>load</th>
+                <th style={{ textAlign: "right" }}>decision</th></tr></thead>
+              <tbody>
+                {pend.map((a) => (
+                  <tr key={a.appointment_id}>
+                    <td className="mono"><strong>{a.shipment_id}</strong>{" "}
+                      <span style={{ color: "var(--muted)" }}>{a.driver_id}</span></td>
+                    <td className="mono">{a.dock_code}{" "}
+                      <span style={{ color: "var(--muted)" }}>{a.facility_id}</span></td>
+                    <td className="mono">{hm(a.starts)}–{hm(a.ends)}</td>
+                    <td><span className="tag t-muted">{a.priority_code}</span>{" "}
+                      <span className="tag t-muted">{a.required_dock_type}</span>{" "}
+                      <span className="tag t-muted">{a.expected_unload_min} min</span></td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button disabled={busy === a.appointment_id}
+                              onClick={() => act(a.appointment_id, true)}>Accept</button>{" "}
+                      <button disabled={busy === a.appointment_id}
+                              onClick={() => act(a.appointment_id, false)}
+                              style={{ borderColor: "var(--stop)", color: "var(--stop)" }}>
+                        Reject</button>
+                    </td>
+                  </tr>))}
+              </tbody>
+            </table></div>}
+      </section>
 
       {facs.map((f) => {
         const docks = [...new Set(rows.filter((r) => r.facility_id === f)

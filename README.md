@@ -56,7 +56,10 @@ address matches no contact on file; a duplicate message replays instead of booki
 Also measured since: feasibility against an independently written SQL oracle (precision 1.0000,
 recall 1.0000 over 72 cases, 1584 true positives, no false positives or negatives), and extraction
 across four Nova models on 44 labelled cases, which is what chose nova-micro on BOOK precision
-1.000. See `docs/07-EVALUATION.md`.
+1.000. Re-run on 26 Nov after the extractor prompt was corrected, nova-micro scores intent 0.886,
+ETA 0.955, earliest 1.000, latest 0.977, all four together 0.818, BOOK precision 1.000 and BOOK
+recall 0.800 — up from intent 0.841 / all four 0.773 / BOOK recall 0.600, with nothing regressed.
+See `docs/07-EVALUATION.md`.
 
 **Not proven by the deployment.** Each Lambda container keeps its own SQLite file in `/tmp`, and
 two of them answer alternate requests, so the dock board and the audit trail can disagree between

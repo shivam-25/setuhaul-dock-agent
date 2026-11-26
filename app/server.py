@@ -7,7 +7,7 @@ Both call the same pipeline, so the demo and the deployed agent cannot drift apa
 """
 from __future__ import annotations
 import os, sys, sqlite3, pathlib, shutil, json, uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,7 +18,7 @@ from setuhaul.agent import handle
 from setuhaul.capacity import (dt_, load_ctx, candidates, rank_options, pending_acceptances,
                                decide_appointment, audit as write_audit,
                                open_alerts, operations_metrics, commitment_state,
-                               PRIORITY_RANK, ts)
+                               PRIORITY_RANK, ts, CONFIDENCE_BUFFER_MIN)
 
 BASE = pathlib.Path(os.environ.get("SETUHAUL_BASE_DB", ROOT / "work" / "setuhaul_work.db"))
 LIVE = pathlib.Path(os.environ.get("SETUHAUL_LIVE_DB", ROOT / "work" / "live.db"))
@@ -442,6 +442,23 @@ def phase_of(d, now):
     return "upcoming"
 
 
+def _as_now_tz(v, now):
+    """Parse a stored timestamp into something comparable with `now`.
+
+    Stored timestamps carry an offset and `now` may or may not; phase_of already does this
+    dance inline for the slot window, and the delay alert needs the same for the ETA.
+    """
+    if not v:
+        return None
+    try:
+        t = dt_(v)
+    except Exception:
+        return None
+    if now.tzinfo is None:
+        return t.replace(tzinfo=None)
+    return t.replace(tzinfo=now.tzinfo) if t.tzinfo is None else t
+
+
 def _trip_alerts(con, d, now, voice="driver"):
     """What someone must be told without having to ask.
 
@@ -494,12 +511,58 @@ def _trip_alerts(con, d, now, voice="driver"):
                     "action": None if ops else "ask",
                     "ask": "I am running late. What slots can I get?"})
     if d["delay_min"] >= 30 and d["appt_id"]:
-        out.append({"level": "warn", "title": f"Running {d['delay_min']} minutes behind",
-                    "body": f"{who} — booked window may no longer fit." if ops
-                            else "Your booked window may no longer fit. Worth checking.",
-                    "action": None if ops else "ask",
-                    "ask": f"I am about {d['delay_min']} minutes late. "
-                           f"Does my slot still work?"})
+        # This used to fire on the delay alone: thirty minutes late plus any appointment
+        # meant "your booked window may no longer fit". It never asked whether the window
+        # actually still fits, which made the alert useless precisely when it mattered
+        # most - after the driver had done what the system told them. A truck rebooked
+        # from an unreachable 10:00 onto a 13:00 it comfortably makes was still warned
+        # that its window might not fit, so the alert that opened the conversation never
+        # cleared and the dashboard contradicted the chat.
+        #
+        # The engine already knows the answer. commitment_unreachable compares the
+        # effective ETA against the end of the window and records how far over it lands.
+        # The same comparison belongs here, so the surface says what the engine decided.
+        # The buffered ready time, not the raw ETA. An ETA is an estimate and earns a
+        # confidence buffer - 30 minutes on a driver's own guess - and the engine compares
+        # the buffered number in F6b. Telling a driver a window "still works" against the
+        # unbuffered ETA would be the same error this alert was just fixed for: true of
+        # the clock, optimistic about the truck.
+        eta = _as_now_tz(d.get("eta"), now)
+        if eta:
+            eta += timedelta(minutes=CONFIDENCE_BUFFER_MIN.get(d.get("eta_conf"), 15))
+        s_start, s_end = _as_now_tz(d.get("slot_start"), now), _as_now_tz(d.get("slot_end"), now)
+        late = f"Running {d['delay_min']} minutes behind"
+        if eta and s_end and eta > s_end:
+            over = int((eta - s_end).total_seconds() // 60)
+            out.append({"level": "critical", "title": late,
+                        "body": (f"{who} — dock {d['dock_code']} closes "
+                                 f"{fmt_hm(d['slot_end'])}, truck ready {eta:%H:%M}, "
+                                 f"{over} min over. Needs a new slot.") if ops else
+                                (f"You are ready at {eta:%H:%M} and dock "
+                                 f"{d['dock_code']} closes at {fmt_hm(d['slot_end'])} — "
+                                 f"{over} minutes too late. That window will not work."),
+                        "action": None if ops else "ask",
+                        "ask": f"I am about {d['delay_min']} minutes late. "
+                               f"Does my slot still work?"})
+        elif eta and s_start and eta > s_start:
+            out.append({"level": "warn", "title": late,
+                        "body": (f"{who} — ready {eta:%H:%M}, into a window that "
+                                 f"opened {fmt_hm(d['slot_start'])}.") if ops else
+                                (f"You are ready at {eta:%H:%M}, after dock "
+                                 f"{d['dock_code']} opens at {fmt_hm(d['slot_start'])}. "
+                                 f"Part of your window is gone. Worth checking."),
+                        "action": None if ops else "ask",
+                        "ask": f"I am about {d['delay_min']} minutes late. "
+                               f"Does my slot still work?"})
+        else:
+            # Late, and the booking still holds. Say both, rather than manufacturing a
+            # worry the data does not support.
+            out.append({"level": "info", "title": late,
+                        "body": (f"{who} — still makes dock {d['dock_code']} "
+                                 f"{fmt_hm(d['slot_start'])}.") if ops else
+                                (f"Your dock {d['dock_code']} window at "
+                                 f"{fmt_hm(d['slot_start'])} still works — you are ready "
+                                 f"at {eta:%H:%M}. Nothing to do.")})
     if d["queue_position"]:
         out.append({"level": "info", "title": f"Position {d['queue_position']} in the yard queue",
                     "body": f"{who} is checked in, waiting for a dock." if ops

@@ -84,11 +84,32 @@ signed in as the actual account named - not simulated from one session.
 | `setuhaul-e2e-01-driver.gif` | `drv006` Manoj Sharma, driver | D4 10:00-11:00 refused as unreachable (ready 11:50), three reachable windows offered with nothing reserved, "the second one works" resolved to D1 13:00-14:00 and held |
 | `setuhaul-e2e-04-queries-failures.gif` | `drv012` Arjun Das, driver | A status question answered as status; an explicit booking taking a hold; two constraints that cannot both hold, met with a question rather than a shortage report (1.7s); a prompt injection refused and handed to a person (0.5s); a gate arrival |
 | `setuhaul-e2e-03-warehouse.gif` | `wh-jai` Neha Bansal, warehouse | The acceptance queue scoped to FAC-JAI-01 - six docks where the coordinator sees nine - and the hold becoming a booking, audited as the warehouse rather than the agent |
+| `setuhaul-e2e-05-driver-confirmed.gif` | `drv006` Manoj Sharma, driver | The close of the loop: the dashboard no longer warns, because 11:50 clears a 13:00 window, and the same question DRV012 asked returns "confirmed" rather than "waiting for confirmation" |
 | `setuhaul-e2e-02-ops-warehouse.gif` | `ops`, coordinator | Every truck today grouped one card per truck, "what can it get?" reporting 79 chains checked, and the append-only log carrying the whole chain |
 
 The explainer trims the first 6.4s of the coordinator capture, which contains an Accept that the
 warehouse act now covers properly; the same booking accepted twice reads as a mistake rather than
 as two roles.
+
+## A sixth bug, found while filming the fifth act
+
+Filming the driver's view after acceptance was supposed to be a victory lap. The dashboard
+still read "Running 60 minutes behind. Your booked window may no longer fit" - on a 13:00
+window the truck reaches at 11:50.
+
+`_trip_alerts` fired that warning on `delay_min >= 30 and appt_id`, with no reachability test
+at all. The whole F6b apparatus - effective ETA, confidence buffer, minutes over - sat unused
+one module away. So the alert was loudest exactly when it was wrong: after the driver had
+taken the system's advice and moved to a window that fits. The dashboard contradicted the chat,
+which said "confirmed".
+
+It now compares the buffered ready time against the window, the way commitment_unreachable
+does, and says one of three things: the window will be missed and by how much, part of it is
+gone, or it still works and there is nothing to do. The buffer matters - the raw ETA is 11:20
+and the buffered one 11:50, and claiming a window "still works" against the unbuffered number
+would repeat in miniature the error this whole project is about.
+
+Caught by filming, not by a test. Same as the other five.
 
 ## One case the UI cannot reach
 

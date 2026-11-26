@@ -59,7 +59,9 @@ DEMOS = [
  ("setuhaul-e2e-03-warehouse", 0,
   "Nothing is promised yet. The hold waits in the warehouse queue, which says so plainly: held, not confirmed. This is the Jaipur warehouse, signed in as herself, seeing six docks where the coordinator saw nine, because her view is scoped to her facility. She accepts, and only now is it a booking."),
  ("setuhaul-e2e-02-ops-warehouse", 6.4,
-  "And the fleet, from the coordinator's desk. One card per truck, worst first. Asked what a truck can get, it reports seventy-nine chains checked - and the window the first driver took is already gone from the list, because both views read one database. The log carries the whole chain: the unreachable window, the ordinal, the acceptance.")
+  "And the fleet, from the coordinator's desk. One card per truck, worst first. Asked what a truck can get, it reports seventy-nine chains checked - and the window the first driver took is already gone from the list, because both views read one database. The log carries the whole chain: the unreachable window, the ordinal, the acceptance."),
+ ("setuhaul-e2e-05-driver-confirmed", 0,
+  "And back to the driver who started it. His dashboard no longer warns him: the one o'clock window still works, because he is ready at eleven fifty - the same buffered number the engine refused the first window on. He asks what the second driver asked, and gets a different answer. Confirmed, not waiting. He arrived at five past ten with a promise that could not be kept, and leaves with a dock he can reach.")
 ]
 
 def dur(p):

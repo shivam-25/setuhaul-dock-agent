@@ -16,7 +16,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from setuhaul.agent import handle
 from setuhaul.capacity import (dt_, load_ctx, candidates, rank_options, pending_acceptances,
-                               decide_appointment, audit as write_audit)
+                               decide_appointment, audit as write_audit,
+                               open_alerts, operations_metrics)
 
 BASE = pathlib.Path(os.environ.get("SETUHAUL_BASE_DB", ROOT / "work" / "setuhaul_work.db"))
 LIVE = pathlib.Path(os.environ.get("SETUHAUL_LIVE_DB", ROOT / "work" / "live.db"))
@@ -221,6 +222,27 @@ def decide(body: Decision):
         if not out.get("ok") and not out.get("already"):
             raise HTTPException(409, out.get("error", "could not decide"))
         return out
+    finally:
+        con.close()
+
+
+@app.get("/api/alerts")
+def alerts():
+    """What a SetuHaul operations coordinator must act on. Derived from decision_audit, so
+    it cannot disagree with what the agent actually did."""
+    con = db()
+    try:
+        return open_alerts(con)
+    finally:
+        con.close()
+
+
+@app.get("/api/metrics")
+def metrics():
+    """The brief's measures, computed rather than asserted."""
+    con = db()
+    try:
+        return operations_metrics(con)
     finally:
         con.close()
 

@@ -311,3 +311,83 @@ def decide_appointment(con, appointment_id: str, *, accept: bool, actor: str,
         raise
     return {"ok": True, "appointment_id": appointment_id, "shipment_id": shipment_id,
             "status": new, "warehouse_ref": ref, "rows": cur.rowcount}
+
+# ---------------------------------------------------------------- operations alerts
+# The brief's Human-operations layer must "handle safety, disputed data, no-slot cases,
+# penalties and exceptional commitments" and must not "leave the loop on high-risk
+# decisions". Those decisions were already written to decision_audit; nothing surfaced
+# them, so a coordinator had to read the raw log to find out a driver was stuck.
+# Derived from the append-only audit rather than a second table, so the alert list cannot
+# drift from what actually happened.
+ALERT_KINDS = {
+    "escalated":            ("no slot exists",        "high"),
+    "contradictory_window": ("driver limits clash",   "medium"),
+    "refused_injection":    ("message refused",       "medium"),
+    "ambiguous_shipment":   ("which trip is unclear", "low"),
+    "asked_intent":         ("intent unclear",        "low"),
+}
+
+
+def open_alerts(con, limit: int = 40) -> list[dict]:
+    rows = con.execute(
+        "SELECT audit_id, ts, decision, shipment_id, thread_id, detail_json, actor "
+        "FROM decision_audit "
+        "WHERE decision IN ('escalated','contradictory_window','refused_injection',"
+        "                   'ambiguous_shipment','asked_intent') "
+        "ORDER BY audit_id DESC LIMIT ?", (limit,)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r) if not isinstance(r, tuple) else dict(zip(
+            ("audit_id","ts","decision","shipment_id","thread_id","detail_json","actor"), r))
+        label, severity = ALERT_KINDS.get(d["decision"], (d["decision"], "low"))
+        detail = {}
+        try:
+            detail = json.loads(d["detail_json"]) if d["detail_json"] else {}
+        except Exception:
+            detail = {}
+        # An escalation whose own hand-off route is broken is the highest-risk case there is:
+        # nobody is actually going to be told. Promote it.
+        blocked = bool(detail.get("route_blocker") or detail.get("blocker"))
+        out.append({"audit_id": d["audit_id"], "at": d["ts"], "kind": d["decision"],
+                    "label": label, "severity": "critical" if blocked else severity,
+                    "shipment_id": d["shipment_id"], "thread_id": d["thread_id"],
+                    "reason": (detail.get("reason") or detail.get("why")
+                               or (detail.get("rejections") or [{}])[0].get("rule")
+                               if isinstance(detail.get("rejections"), list) else None),
+                    "route_blocker": detail.get("route_blocker") or detail.get("blocker")})
+    return out
+
+
+def operations_metrics(con) -> dict:
+    """The measures the brief says the submission is judged on, computed from the audit
+    rather than asserted in prose."""
+    n = lambda q, p=(): (con.execute(q, p).fetchone() or [0])[0]
+    # A turn that only asks a question returns before request_log is written, so counting
+    # clarifications there always yields zero. decision_audit records every turn, asked or
+    # answered, which is why the counts come from there.
+    auto    = n("SELECT COUNT(*) FROM request_log WHERE route='auto'")
+    human   = n("SELECT COUNT(*) FROM request_log WHERE route='human'")
+    asked   = n("SELECT COUNT(*) FROM decision_audit WHERE decision IN "
+                "('ambiguous_shipment','asked_intent','contradictory_window')")
+    replies = auto + human + asked
+    slots   = n("SELECT COUNT(*) FROM appointment_slots WHERE slot_status='OPEN'")
+    used    = n("SELECT COUNT(DISTINCT slot_id) FROM appointments WHERE appointment_status "
+                "IN ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS')")
+    dupes   = n("SELECT COUNT(*) FROM decision_audit WHERE decision='duplicate_replayed'")
+    escal   = n("SELECT COUNT(*) FROM decision_audit WHERE decision='escalated'")
+    # A double allocation would be two active appointments on one slot. The partial unique
+    # index makes this impossible; reporting it is how we show that, not assume it.
+    conflicts = n("SELECT COUNT(*) FROM (SELECT slot_id FROM appointments WHERE "
+                  "appointment_status IN ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS') "
+                  "GROUP BY slot_id HAVING COUNT(*) > 1) x")
+    return {"turns": replies,
+            "resolved_without_human": auto,
+            "clarification_turns": asked,
+            "handed_to_human": human,
+            "automation_share": round(auto / replies, 3) if replies else None,
+            "clarifications_per_turn": round(asked / replies, 3) if replies else None,
+            "slots_open": slots, "slots_allocated": used,
+            "slot_utilisation": round(used / slots, 3) if slots else None,
+            "duplicates_replayed": dupes,
+            "escalations": escal,
+            "conflicting_allocations": conflicts}

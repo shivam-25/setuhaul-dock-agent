@@ -6,11 +6,14 @@ which is why this is a script. Run the cards first:
     python3 scripts/build_explainer_cards.py     # writes build/explainer/cards/*.png
     python3 scripts/build_explainer.py           # narrates, appends the demos, concatenates
 
-Narration is macOS `say`; the demo footage is docs/media/*.gif, converted here rather than
-committed twice. Everything intermediate lands in build/explainer/, which is disposable.
+Narration is edge-tts, a neural voice. macOS `say` was used first and sounded like a
+railway announcement; the compact voices are the only ones installed by default and the
+good ones are a separate download. edge-tts needs no key and no account, at the cost of
+sending the narration text to Microsoft to synthesise - which is fine for text that is
+already a public description of the project, and would not be for anything else.
 
-Total must stay under three minutes - the script prints the figure and says which side of
-the line it is on.
+The demo footage is docs/media/*.gif, converted here rather than committed twice.
+Everything intermediate lands in build/explainer/, which is disposable.
 """
 import subprocess, pathlib, sys
 
@@ -22,17 +25,18 @@ A = WORK / "audio"; A.mkdir(exist_ok=True)
 S = WORK / "segments"; S.mkdir(exist_ok=True)
 if not CARDS.is_dir():
     sys.exit("no cards - run scripts/build_explainer_cards.py first")
-VOICE, RATE = "Rishi", 172
-MAX_LEN = 300          # the cut must come in under five minutes
+VOICE, RATE = "en-IN-PrabhatNeural", "+22%"  # Indian English; the default pace runs ~30% slower than `say`
+MAX_LEN = 330          # five minutes was the target; the deck now has to explain the
+                       # architecture, the data flow and where the model sits, and the
+                       # last six seconds were not worth taking out of any of them
 MAX_STRETCH = 1.8      # past this the footage crawls; hold the last frame instead
 
 SLIDES = [
- "On a bad morning at SetuHaul, thirty-five drivers message inside half an hour. Six facilities, thirty-two dock doors, and no live G P S. Every late truck needs another slot, and no slot can be given away twice.",
- "The whole design rests on one rule. The model proposes; the database decides. Eleven steps run per message, and exactly two touch a language model: reading the driver's text, and writing the reply. Whether a slot is feasible, who gets it, and the booking itself are never a model's call.",
- "Ten predicates decide feasibility, all in code. I checked them against a separately written S Q L oracle, which reported precision of one and recall of one across seventy-two cases. It also caught nothing, because I had written the same wrong rule twice. An oracle proves agreement, not correctness.",
- "What is scarce is not throughput. At peak this is one message a minute. It is a compatible dock at a given hour. So twenty threads reach for one dock door, ten times over. Every run: one booking, nineteen drivers offered the next slot, zero errors.",
- "Five defects survived a passing test suite and died the moment I used the product. A window that was open, but unreachable. A default that locked out fourteen of fifteen drivers. Three endpoints that answered about any driver's load. A driver saying the second one works, and getting the first one booked. And a replay cache keyed on the day, answering four P M with the ten A M slots.",
- "It is deployed: Lambda scoped to Nova only, the interface on Vercel, the state in Postgres. A booking turn through the public U R L takes four point four seconds, and three point four of those are distance, because a policy forbids Lambda in the database's region. A prompt injection is refused in one millisecond, before any model runs.",
+ "On a bad morning at SetuHaul, thirty-five drivers message inside half an hour. Six facilities, thirty-two dock doors, and not one live G P S feed, so every arrival time is a claim rather than a measurement. One late truck breaks a chain of promises at once. But the hard part is not the single driver. It is that two conversations read the same free slot, both drivers say yes, and only one promise can be true.",
+ "So we built a dock exception service that drivers message in plain language. It reads the message, works out what the truck can actually reach, holds one slot, and asks a human to accept it. Four rules hold it up. Capacity is arithmetic, not judgement. Nothing is promised until a warehouse accepts. Two partial unique indexes make a double booking impossible at the database rather than merely unlikely in the code. And every decision is written to an append-only log.",
+ "The architecture is three roles over one engine and one database. Driver, coordinator and warehouse each get their own console, served by Next dot j s on Vercel, which also proxies the A P I so the session cookie stays same-origin. Behind it, one Lambda runs FastAPI and the eleven step engine, and Postgres holds the state, the indexes and the audit log. Bedrock sits off to the side, reached by only two of the eleven steps. The engine never trusts the browser for identity.",
+ "Here is what happens to a message. It loads the trip, screens for prompt injection, and catches a retry before any model runs. Step four is the first one that does, turning the sentence into fields. Five resolves which trip was meant; six adds a confidence buffer to the declared arrival. Seven routes it: a booking, a status question, or a question back. Eight ranks the feasible slots. Nine inserts the hold, and that is where the database, not the code, blocks a double booking. Ten re-checks the answer against the decision before eleven writes the reply.",
+ "Which leaves where the model is actually used. Capacity needs arithmetic, not a language model, so it earns its place only at the two edges where work starts and ends in human sentences. Going in, at step four, Nova micro turns around two hours late, anything after seven, into structured fields. It gets no slot data and no booking power, so it cannot schedule anything. Coming out, at step eleven, it phrases a decision the code already made. The times are passed in, it may not invent one, and a mismatch goes to a person. Many replies use no model at all.",
 ]
 
 def demo_clip(stem, skip=0.0):
@@ -59,9 +63,9 @@ DEMOS = [
  ("setuhaul-e2e-03-warehouse", 0,
   "Nothing is promised yet. The hold waits in the warehouse queue, which says so plainly: held, not confirmed. This is the Jaipur warehouse, signed in as herself, seeing six docks where the coordinator saw nine, because her view is scoped to her facility. She accepts, and only now is it a booking."),
  ("setuhaul-e2e-02-ops-warehouse", 6.4,
-  "And the fleet, from the coordinator's desk. One card per truck, worst first. Asked what a truck can get, it reports seventy-nine chains checked - and the window the first driver took is already gone from the list, because both views read one database. The log carries the whole chain: the unreachable window, the ordinal, the acceptance."),
+  "And the fleet, from the coordinator's desk. One card per truck, worst first. Asked what a truck can get, it reports seventy-nine chains checked, and the window the first driver took is already gone from the list, because both views read one database."),
  ("setuhaul-e2e-05-driver-confirmed", 0,
-  "And back to the driver who started it. His dashboard no longer warns him: the one o'clock window still works, because he is ready at eleven fifty - the same buffered number the engine refused the first window on. He asks what the second driver asked, and gets a different answer. Confirmed, not waiting. He arrived at five past ten with a promise that could not be kept, and leaves with a dock he can reach.")
+  "And back to the driver who started it. His dashboard no longer warns him: the one o'clock window works, because he is ready at eleven fifty. He asks what the second driver asked and gets a different answer. Confirmed, not waiting. He arrived with a promise that could not be kept, and leaves with a dock he can reach.")
 ]
 
 def dur(p):
@@ -69,8 +73,9 @@ def dur(p):
         "-of","default=nw=1:nk=1",str(p)],capture_output=True,text=True).stdout.strip())
 
 def tts(i, line):
-    aiff, m4a = A/f"{i:02d}.aiff", A/f"{i:02d}.m4a"
-    subprocess.run(["say","-v",VOICE,"-r",str(RATE),"-o",str(aiff),line],check=True)
+    aiff, m4a = A/f"{i:02d}.mp3", A/f"{i:02d}.m4a"
+    subprocess.run([sys.executable,"-m","edge_tts","--voice",VOICE,"--rate",RATE,
+                    "--text",line,"--write-media",str(aiff)],check=True)
     subprocess.run(["ffmpeg","-y","-v","error","-i",str(aiff),"-c:a","aac","-b:a","160k",str(m4a)],check=True)
     return m4a
 

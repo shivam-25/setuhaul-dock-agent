@@ -469,7 +469,11 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
             "  AND (a.is_current=1 OR a.appointment_id LIKE ("
             "      SELECT p.appointment_id FROM appointments p WHERE p.shipment_id=a.shipment_id "
             "      AND p.is_current=1 LIMIT 1) || '-O%') "
-            "GROUP BY d.dock_code", (shipment_id,)).fetchone()
+            # Same portability trap as pending_acceptances: SQLite tolerates bare columns
+            # under GROUP BY, Postgres does not. Naming them all keeps the status path
+            # working on both.
+            "GROUP BY a.appointment_id, a.appointment_status, d.dock_code",
+            (shipment_id,)).fetchone()
         box(7, "status", f"{appt[1]} on {appt[2]}" if appt else "no current appointment")
         if appt:
             st, en = dt_(appt[3]), dt_(appt[4])

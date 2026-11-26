@@ -83,6 +83,43 @@ def candidates(con, ctx: Ctx, now: datetime, *, include_failures=True) -> list[C
     last_start = rules.get("LAST_NEW_START_TIME") or fac[1]
     docks = con.execute("SELECT dock_id,dock_code,dock_type,max_vehicle_weight_kg FROM docks "
                         "WHERE facility_id=?", (ctx.facility_id,)).fetchall()
+
+    # Prefetch, once per facility, what used to be three queries per slot chain.
+    #
+    # On SQLite those 237 extra round trips were in-process and invisible. Against a
+    # network database they cost 41 ms each and turned one feasibility pass into 10
+    # seconds, well past the 5-second gate. The N+1 was always there; only the move to
+    # Postgres made it measurable.
+    #
+    # This does not weaken the concurrency guarantee. candidates() was only ever a read,
+    # and a read is stale the instant it returns whether it ran once or 246 times. The
+    # authoritative arbiter is unchanged: claim() takes the lock atomically and the
+    # partial unique index refuses a second active appointment on a slot. Reading in bulk
+    # changes how fresh the OFFER is, never whether the COMMIT can double-book.
+    taken_rows = con.execute(
+        f"SELECT a.slot_id FROM appointments a "
+        f"JOIN appointment_slots sl ON sl.slot_id = a.slot_id "
+        f"JOIN docks dk ON dk.dock_id = sl.dock_id "
+        f"WHERE dk.facility_id = ? AND a.appointment_status IN {ACTIVE}",
+        (ctx.facility_id,)).fetchall()
+    taken_ids = {r[0] for r in taken_rows}
+
+    locked_rows = con.execute(
+        "SELECT l.slot_id FROM slot_locks l "
+        "JOIN appointment_slots sl ON sl.slot_id = l.slot_id "
+        "JOIN docks dk ON dk.dock_id = sl.dock_id "
+        "WHERE dk.facility_id = ? AND l.held_until > ? AND l.thread_id IS NOT ?",
+        (ctx.facility_id, ts(now), ctx.thread_id)).fetchall()
+    locked_ids = {r[0] for r in locked_rows}
+
+    outage_rows = con.execute(
+        "SELECT e.dock_id, e.dock_event_id, e.event_type, e.event_start_ts, e.event_end_ts "
+        "FROM dock_status_events e JOIN docks dk ON dk.dock_id = e.dock_id "
+        "WHERE dk.facility_id = ?", (ctx.facility_id,)).fetchall()
+    outages: dict[str, list] = {}
+    for r in outage_rows:
+        outages.setdefault(r[0], []).append((r[1], r[2], r[3], r[4]))
+
     out: list[Candidate] = []
     for dock_id, dock_code, dock_type, dock_max_kg in docks:
         slots = con.execute("SELECT slot_id,slot_start_ts,slot_end_ts,slot_status FROM appointment_slots "
@@ -106,15 +143,10 @@ def candidates(con, ctx: Ctx, now: datetime, *, include_failures=True) -> list[C
                 f.append(f"F2b load over {heavy_kg}kg must use HEAVY dock (RULE004)")
             blocked = [s[0] for s in slots[i:j+1] if s[3] != "OPEN"]
             if blocked: f.append(f"F3 slot marked {slots[i][3]}")
-            taken = con.execute(
-                f"SELECT slot_id FROM appointments WHERE appointment_status IN {ACTIVE} "
-                f"AND slot_id IN ({','.join('?'*len(chain))})", chain).fetchall()
-            if taken: f.append(f"F4 already booked: {','.join(t[0] for t in taken)}")
-            locked = con.execute(
-                f"SELECT slot_id FROM slot_locks WHERE held_until > ? AND thread_id IS NOT ? "
-                f"AND slot_id IN ({','.join('?'*len(chain))})",
-                [ts(now), ctx.thread_id] + chain).fetchall()
-            if locked: f.append(f"F5 held by another conversation: {','.join(l[0] for l in locked)}")
+            taken = [sl for sl in chain if sl in taken_ids]
+            if taken: f.append(f"F4 already booked: {','.join(taken)}")
+            locked = [sl for sl in chain if sl in locked_ids]
+            if locked: f.append(f"F5 held by another conversation: {','.join(locked)}")
             if start < ctx.ready_at:
                 f.append(f"F6 starts {start:%H:%M}, before ready time {ctx.ready_at:%H:%M} "
                          f"(ETA {ctx.effective_eta:%H:%M} + {CONFIDENCE_BUFFER_MIN[ctx.confidence]}min "
@@ -126,10 +158,8 @@ def candidates(con, ctx: Ctx, now: datetime, *, include_failures=True) -> list[C
                 f.append(f"F8a finishes {end:%H:%M}, facility closes {fac[1]}")
             if f"{start:%H:%M}" > last_start:
                 f.append(f"F8b starts after {last_start}, needs manual approval (RULE005)")
-            outage = con.execute(
-                "SELECT dock_event_id,event_type,event_start_ts,event_end_ts FROM dock_status_events "
-                "WHERE dock_id=? AND event_start_ts < ? AND event_end_ts > ?",
-                (dock_id, ts(end), ts(start))).fetchall()
+            outage = [o for o in outages.get(dock_id, ())
+                      if o[2] < ts(end) and o[3] > ts(start)]
             if outage:
                 o = outage[0]
                 f.append(f"F9 dock {o[1]} {dt_(o[2]):%H:%M}-{dt_(o[3]):%H:%M} ({o[0]})")
@@ -256,7 +286,11 @@ def pending_acceptances(con) -> list[dict]:
         JOIN facilities f  ON f.facility_id = d.facility_id
         JOIN shipments s   ON s.shipment_id = a.shipment_id
         WHERE a.appointment_status = 'PENDING_CONFIRMATION' AND a.is_current = 1
-        GROUP BY a.appointment_id
+        -- Every non-aggregated column is named. SQLite accepts a bare GROUP BY and picks
+        -- an arbitrary row from each group; Postgres rejects it outright. The SQLite
+        -- behaviour was never safe - it just failed quietly instead of loudly.
+        GROUP BY a.appointment_id, a.shipment_id, s.driver_id, d.dock_code, f.facility_id,
+                 a.booked_at, s.priority_code, s.required_dock_type, s.expected_unload_min
         ORDER BY starts""").fetchall()
     return [dict(r) if not isinstance(r, tuple) else r for r in rows]
 

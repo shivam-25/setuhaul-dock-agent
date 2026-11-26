@@ -22,13 +22,21 @@ from __future__ import annotations
 import os, re, sqlite3
 
 _PLACEHOLDER = re.compile(r"'(?:[^']|'')*'|\?")
+# `IS NOT %s`, but never `IS NOT NULL/TRUE/FALSE/DISTINCT`, which Postgres accepts as-is.
+_IS_NOT_EXPR = re.compile(r"\bIS\s+NOT\s+(?!NULL\b|TRUE\b|FALSE\b|DISTINCT\b)", re.I)
 
 
 def _to_pg(sql: str) -> str:
     """`?` -> `%s`, leaving `?` inside string literals alone, and `%` escaped for psycopg."""
     sql = sql.replace("%", "%%")
     out = _PLACEHOLDER.sub(lambda m: "%s" if m.group(0) == "?" else m.group(0), sql)
-    return out.replace("BEGIN IMMEDIATE", "BEGIN")
+    out = out.replace("BEGIN IMMEDIATE", "BEGIN")
+    # SQLite spells null-safe comparison `IS` / `IS NOT` against any expression. Postgres
+    # allows IS NOT only before NULL/TRUE/FALSE and spells the general form
+    # IS DISTINCT FROM. Both engines mean the same thing: NULL compares without poisoning
+    # the result, which is exactly why the slot-lock query uses it.
+    out = _IS_NOT_EXPR.sub("IS DISTINCT FROM ", out)
+    return out
 
 
 class DualRow(dict):
@@ -50,14 +58,16 @@ class DualRow(dict):
         if isinstance(k, int):
             return super().__getitem__(self._order[k])
         if isinstance(k, slice):
-            return tuple(super(DualRow, self).__getitem__(c) for c in self._order[k])
+            return tuple(dict.__getitem__(self, c) for c in self._order[k])
         return super().__getitem__(k)
 
     def keys(self):   return list(self._order)
     def __iter__(self):
         # sqlite3.Row iterates values, not keys; dict iterates keys. Values is the one that
         # makes tuple(row) and sequence unpacking behave as the existing code expects.
-        return iter(super().__getitem__(c) for c in self._order)
+        # dict.__getitem__ explicitly: a zero-argument super() inside a generator
+        # expression runs in its own scope and loses the class binding.
+        return iter([dict.__getitem__(self, c) for c in self._order])
 
 
 def dual_row(cur):

@@ -8,7 +8,7 @@ Both call the same pipeline, so the demo and the deployed agent cannot drift apa
 from __future__ import annotations
 import os, sys, sqlite3, pathlib, shutil, json
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -41,9 +41,14 @@ if not ON_LAMBDA:
 # described in docs/06-AWS-RUNBOOK.md: there the token is issued per person and carries a facility.
 DEMO_TOKEN = os.environ.get("SETUHAUL_DEMO_TOKEN")
 
+# The shared demo token is retired. It shipped inside the browser bundle, so every visitor
+# had it and it was never a credential - it kept a public URL from being trivially crawled,
+# nothing more. Each person now signs in, and authorisation is per role in app/authapi.py.
+# SETUHAUL_DEMO_TOKEN is still honoured if set, as a crawler gate in front of sign-in only.
 @app.middleware("http")
 async def gate(request, call_next):
     if DEMO_TOKEN and request.url.path.startswith("/api/") \
+       and not request.url.path.startswith("/api/auth/") \
        and request.method != "OPTIONS" \
        and request.headers.get("x-demo-token") != DEMO_TOKEN:
         from fastapi.responses import JSONResponse
@@ -60,13 +65,29 @@ def reset_live():
 
 if not LIVE.exists(): reset_live()
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 def db():
+    """Postgres in any deployed environment, SQLite only for a local file run.
+
+    This is the fix for the split-container defect: Lambda's /tmp is per execution
+    environment, so two warm containers held two different SQLite files and could sell the
+    same slot twice. Reserved concurrency caps simultaneous executions, not warm
+    environments, so no Lambda setting could fix it. One shared Postgres does.
+    """
+    if DATABASE_URL:
+        from setuhaul.db import connect
+        return connect(DATABASE_URL, row_factory=True)
     con = sqlite3.connect(LIVE, timeout=10)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA busy_timeout=5000")
     return con
 
 # ------------------------------------------------------------------ AgentCore
+from app.authapi import router as auth_router, current_user, require_role, scope_clause
+app.include_router(auth_router)
+
+
 @app.get("/ping")
 def ping(): return {"status": "healthy"}
 
@@ -91,8 +112,14 @@ class ChatIn(BaseModel):
     now: str | None = None
 
 @app.post("/api/chat")
-def chat(body: ChatIn):
+def chat(body: ChatIn, user: dict = Depends(current_user)):
     if not body.message.strip(): raise HTTPException(400, "empty message")
+    # A driver speaks only as themselves. Without this, any signed-in driver could post
+    # into another driver's thread by changing one field in the request body.
+    if user["role"] == "driver":
+        if body.driver_id and body.driver_id != user["driver_id"]:
+            raise HTTPException(403, "you can only send messages as yourself")
+        body.driver_id = user["driver_id"]
     con = db()
     try:
         rec = handle(con, message=body.message, driver_id=body.driver_id,
@@ -104,15 +131,18 @@ def chat(body: ChatIn):
     return rec
 
 @app.get("/api/drivers")
-def drivers():
+def drivers(user: dict = Depends(current_user)):
+    # One scope_clause, defined once in authapi, so a new endpoint cannot accidentally
+    # expose another driver's trips by forgetting a WHERE.
+    where, params = scope_clause(user)
     con = db()
-    rows = con.execute("""
+    rows = con.execute(f"""
         SELECT d.driver_id, d.driver_name, s.shipment_id, s.destination_facility_id,
                s.required_dock_type, s.load_weight_kg, s.expected_unload_min,
                s.priority_code, s.original_eta_ts, s.current_status
         FROM drivers d JOIN shipments s ON s.driver_id = d.driver_id
-        WHERE s.current_status IN ('ASSIGNED','IN_TRANSIT','WAITING')
-        ORDER BY d.driver_id, s.original_eta_ts""").fetchall()
+        WHERE s.current_status IN ('ASSIGNED','IN_TRANSIT','WAITING') AND {where}
+        ORDER BY d.driver_id, s.original_eta_ts""", params).fetchall()
     con.close()
     out = {}
     for r in rows:
@@ -187,7 +217,7 @@ class Decision(BaseModel):
 
 
 @app.get("/api/pending")
-def pending():
+def pending(user: dict = Depends(require_role("warehouse","coordinator")), ):
     """What the warehouse has been asked to accept and has not answered."""
     con = db()
     try:
@@ -197,7 +227,7 @@ def pending():
 
 
 @app.post("/api/decide")
-def decide(body: Decision):
+def decide(body: Decision, user: dict = Depends(require_role("warehouse","coordinator"))):
     """The other half of 'waiting for warehouse to accept'.
 
     Until this existed every booking told the driver it was awaiting acceptance and nothing
@@ -227,7 +257,7 @@ def decide(body: Decision):
 
 
 @app.get("/api/alerts")
-def alerts():
+def alerts(user: dict = Depends(require_role("coordinator","warehouse")), ):
     """What a SetuHaul operations coordinator must act on. Derived from decision_audit, so
     it cannot disagree with what the agent actually did."""
     con = db()
@@ -238,7 +268,7 @@ def alerts():
 
 
 @app.get("/api/metrics")
-def metrics():
+def metrics(user: dict = Depends(require_role("coordinator","warehouse")), ):
     """The brief's measures, computed rather than asserted."""
     con = db()
     try:

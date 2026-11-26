@@ -391,3 +391,90 @@ def operations_metrics(con) -> dict:
             "duplicates_replayed": dupes,
             "escalations": escal,
             "conflicting_allocations": conflicts}
+
+# ---------------------------------------------------------------- D7: scarce capacity
+# "How do you order simultaneous requests when capacity runs short?"
+#
+# Requests do not actually arrive simultaneously - they arrive one at a time, seconds
+# apart, which is why rank_requests (a batch sort) never had a caller. Ordering a list
+# is the wrong shape for an online service. The real question is narrower and harder:
+# when THIS driver asks, may they take this slot, given who else is waiting?
+#
+# The policy, stated so it can be checked and argued with:
+#
+#   A lower-priority truck may not take the LAST slot that a higher-priority truck
+#   could use, WHEN the lower-priority truck still has an alternative of its own.
+#
+# Both halves matter. Without the first, a CRITICAL reefer loses its only bay to a LOW
+# load that had four other choices. Without the second, we starve whoever is actually in
+# front of us to protect a truck that may never ask - so if this is also their last
+# option, they keep it and first-come-first-served stands.
+#
+# A held booking is never taken back. Re-allocation after a promise is a different
+# decision with a human in it (see Boundaries: "whether a booking committed in the
+# system of record").
+
+def contenders(con, ctx: Ctx, now: datetime) -> list[Ctx]:
+    """Other shipments genuinely competing for this facility right now: in an open
+    exception, not yet served, arriving in a comparable window. Not every shipment in the
+    table - a truck that arrived yesterday is not contending for tonight."""
+    rows = con.execute("""
+        SELECT DISTINCT s.shipment_id
+        FROM shipments s
+        JOIN driver_exceptions e ON e.shipment_id = s.shipment_id
+                                AND e.exception_status NOT IN ('DUPLICATE','RESOLVED','CLOSED')
+        WHERE s.destination_facility_id = ?
+          AND s.shipment_id <> ?
+          AND NOT EXISTS (SELECT 1 FROM appointments a
+                          WHERE a.shipment_id = s.shipment_id AND a.is_current = 1
+                            AND a.appointment_status IN ('CONFIRMED','IN_PROGRESS'))
+        """, (ctx.facility_id, ctx.shipment_id)).fetchall()
+    out = []
+    for r in rows:
+        sid = r[0] if not isinstance(r, dict) else r["shipment_id"]
+        try:
+            out.append(load_ctx(con, sid, now=now))
+        except Exception:
+            continue
+    return out
+
+
+def priority_gate(con, ctx: Ctx, ranked: list[Candidate], now: datetime) -> tuple[list[Candidate], list[dict]]:
+    """Filter the offer list under the scarcity policy above.
+
+    Returns (allowed, withheld) where each withheld entry carries the reason and the
+    higher-priority shipment it was protected for, so decision_audit can answer
+    "why did driver B not get 18:00?" and so priority-policy violations are countable.
+    """
+    mine = PRIORITY_RANK.get(ctx.priority_code, 9)
+    higher = [c for c in contenders(con, ctx, now)
+              if PRIORITY_RANK.get(c.priority_code, 9) < mine]
+    if not higher or len(ranked) <= 1:
+        # Nobody outranks this driver here, or this is their only option. Either way the
+        # policy has nothing to say and first-come-first-served stands.
+        return ranked, []
+
+    # What each higher-priority contender could still use.
+    reach: dict[str, set[str]] = {}
+    for h in higher:
+        try:
+            reach[h.shipment_id] = {c.slot_ids[0] for c in candidates(con, h, now) if c.ok}
+        except Exception:
+            continue
+
+    allowed, withheld = [], []
+    for cand in ranked:
+        sole_for = [sid for sid, slots in reach.items()
+                    if slots and slots == {cand.slot_ids[0]}]
+        if sole_for:
+            withheld.append({"slot_id": cand.slot_ids[0], "label": cand.label,
+                             "reason": "last compatible slot for a higher-priority load",
+                             "protected_for": sole_for,
+                             "their_priority": next(h.priority_code for h in higher
+                                                    if h.shipment_id == sole_for[0]),
+                             "my_priority": ctx.priority_code})
+        else:
+            allowed.append(cand)
+    if not allowed:                      # never starve the driver in front of us
+        return ranked, []
+    return allowed, withheld

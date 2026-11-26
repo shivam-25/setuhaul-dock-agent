@@ -7,7 +7,8 @@ import boto3
 from botocore.config import Config
 from . import prompts
 from .capacity import (Ctx, dt_, ts, CONFIDENCE_BUFFER_MIN, candidates, feasible,
-                       rank_options, claim, commit_booking, LostRace, audit, ACTIVE)
+                       rank_options, claim, commit_booking, LostRace, audit, ACTIVE,
+                       priority_gate, POLICY_VERSION)
 
 REGION = os.environ.get("AWS_REGION") or "ap-southeast-2"
 # A named profile is a developer-laptop idea. On Lambda or AgentCore there is no profile and no
@@ -487,6 +488,22 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
             dock_note = (f"The driver asked for dock {want}. Nothing on {want} fits their load "
                          f"today, so these are on other docks. Say that in one short clause.")
             box(8, "prefer", f"driver asked for {want}: nothing feasible there, offering others")
+
+    # D7. Before anything is shown, apply the scarce-capacity policy. This runs on the
+    # feasible set, not after a promise: a slot withheld here was never offered, which is
+    # the only point at which priority can be honoured without taking a booking back.
+    withheld = []
+    if ok:
+        ok, withheld = priority_gate(con, ctx, ok, now)
+        if withheld:
+            box(8, "priority", f"{len(withheld)} slot(s) withheld for a higher-priority load: "
+                               + "; ".join(f"{w['label']} -> {w['protected_for'][0]} "
+                                           f"({w['their_priority']} over {w['my_priority']})"
+                                           for w in withheld))
+            audit(con, request_id=rid, box="8", decision="priority_withheld",
+                  shipment_id=shipment_id, thread_id=thread_id,
+                  detail={"withheld": withheld, "policy": "last-slot protection",
+                          "policy_version": POLICY_VERSION}, now=now)
 
     if not ok:
         esc = escalation_record(con, ctx, all_c, now, "no feasible slot after all constraints")

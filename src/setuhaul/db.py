@@ -31,6 +31,42 @@ def _to_pg(sql: str) -> str:
     return out.replace("BEGIN IMMEDIATE", "BEGIN")
 
 
+class DualRow(dict):
+    """A row readable both ways, because sqlite3.Row is.
+
+    sqlite3.Row supports row["name"] AND row[0]; psycopg's dict_row supports only the first
+    and its tuple_row only the second. Call sites in this codebase use both styles - the
+    metrics helpers index [0] on a COUNT, the agent reads columns by name - so a row that
+    answers only one of them breaks working code in a way the SQLite tests cannot catch.
+    Subclassing dict keeps dict(row), .get and ** working unchanged.
+    """
+    __slots__ = ("_order",)
+
+    def __init__(self, mapping, order):
+        super().__init__(mapping)
+        self._order = order
+
+    def __getitem__(self, k):
+        if isinstance(k, int):
+            return super().__getitem__(self._order[k])
+        if isinstance(k, slice):
+            return tuple(super(DualRow, self).__getitem__(c) for c in self._order[k])
+        return super().__getitem__(k)
+
+    def keys(self):   return list(self._order)
+    def __iter__(self):
+        # sqlite3.Row iterates values, not keys; dict iterates keys. Values is the one that
+        # makes tuple(row) and sequence unpacking behave as the existing code expects.
+        return iter(super().__getitem__(c) for c in self._order)
+
+
+def dual_row(cur):
+    cols = [d[0] for d in cur.description] if cur.description else []
+    def make(values):
+        return DualRow(dict(zip(cols, values)), cols)
+    return make
+
+
 class _Cursor:
     """Carries rowcount and iteration, so `con.execute(...).fetchone()` keeps working."""
     __slots__ = ("_cur",)
@@ -50,9 +86,8 @@ class PgConnection:
 
     def __init__(self, dsn: str, row_factory=None):
         import psycopg
-        from psycopg.rows import dict_row
         self._c = psycopg.connect(dsn, autocommit=False,
-                                  row_factory=dict_row if row_factory else None)
+                                  row_factory=dual_row if row_factory else None)
         self._dict = bool(row_factory)
 
     def execute(self, sql, params=()):
@@ -75,8 +110,8 @@ class PgConnection:
     def row_factory(self, v):
         # sqlite3 callers set this after connecting; psycopg fixes it at connect time, so
         # honour it by swapping the cursor factory rather than silently ignoring it.
-        from psycopg.rows import dict_row, tuple_row
-        self._c.row_factory = dict_row if v else tuple_row
+        from psycopg.rows import tuple_row
+        self._c.row_factory = dual_row if v else tuple_row
         self._dict = bool(v)
 
 

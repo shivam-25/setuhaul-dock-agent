@@ -163,6 +163,11 @@ _OVERCLAIM = re.compile(
     r"\b(all|every)\b[^.]{0,30}?\b(slots?|docks?)\b[^.]{0,30}?\b(free|open|available|empty)\b"
     r"|\b(slots?|docks?)\b[^.]{0,25}?\b(all|every)\b[^.]{0,25}?\b(free|open|available)\b"
     r"|\beverything\s+is\s+(free|open|available)\b", re.I)
+# "all three slots are open" is scoped to what was offered and is true; "all slots are free"
+# is not. The difference is a word that ties the quantifier to the list, so a match that
+# carries one is allowed through. Without this C8 escalates correct answers.
+_SCOPED = re.compile(r"\bD[1-9]\b|\b(these|those|both|two|three|above|listed|shown|"
+                     r"offered|here|\d+)\b", re.I)
 
 def output_checks(reply: str, options: list, status: str, held_slot_labels: set) -> list[str]:
     fails = []
@@ -181,7 +186,8 @@ def output_checks(reply: str, options: list, status: str, held_slot_labels: set)
                 fails.append(f"C4 said 'confirmed' while status is {status}")
                 break
     if re.search(r"\[phone\]|\[email\]", reply): fails.append("C7 echoed masked personal data")
-    if _OVERCLAIM.search(reply):
+    m = _OVERCLAIM.search(reply)
+    if m and not _SCOPED.search(m.group(0)):
         fails.append("C8 claimed availability beyond the options given")
     # A dock code with no time cannot be acted on. If we offered slots, the reply must carry
     # every distinct start time we offered.
@@ -379,6 +385,21 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
         return t
     early = _at(facts.get("earliest_acceptable_time"))
     latest = _at(facts.get("latest_finish_time"), after=eta)
+    # A window that closes before it opens cannot be satisfied by any slot, so the feasibility
+    # pass would return 0 of 79 and the driver would be told there is no capacity tonight.
+    # That is a misreading, not a shortage. Ask which limit is real instead of escalating.
+    if early is not None and latest is not None and latest <= early:
+        box(6, "eta", f"contradictory window: not before {early:%H:%M}, finished by "
+                      f"{latest:%H:%M}")
+        q, ms = clarify(f"which of these two is right, since they cannot both be - they want "
+                        f"a slot no earlier than {early:%H:%M}, but also to finish unloading "
+                        f"by {latest:%H:%M}", masked)
+        box(11, "clarify", "asked which limit is real", ms)
+        rec["route"] = "ask"; rec["reply"] = q
+        audit(con, request_id=rid, box="6", decision="contradictory_window",
+              shipment_id=shipment_id, thread_id=thread_id,
+              detail={"earliest": ts(early), "latest": ts(latest)}, now=now)
+        rec["ms"] = int((time.time() - rec["t0"]) * 1000); return rec
     if early is not None:  ctx.earliest_acceptable = early
     if latest is not None: ctx.latest_acceptable = latest
     box(6, "eta", f"{eta:%H:%M} {conf} -> ready {ctx.ready_at:%H:%M} ({why})")

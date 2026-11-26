@@ -7,6 +7,28 @@ It never decides feasibility, never ranks scarce capacity, never commits.
 
 ---
 
+
+## Evidence index
+
+The brief asks for an answer, a reason, and a named piece of evidence for each of the
+thirteen. This is the evidence column; the reasoning is below.
+
+| # | Decision | Evidence to bring | Where it is |
+|---|---|---|---|
+| 1 | What to collect before showing options | Three chats with the fields asked for | `docs/TRANSCRIPTS.md`, cases 1–3 |
+| 2 | Linking a conversation to driver/shipment/appointment | A message-to-rows trace for an unclear case | `docs/TRANSCRIPTS.md` "ambiguous shipment"; box 5 in any `/api/chat` response |
+| 3 | Setting the revised ETA and its confidence | The rule applied to two messages | `docs/TRANSCRIPTS.md`; box 6 shows the arithmetic and the buffer |
+| 4 | What makes a slot feasible | A written check run on three shipments | `scripts/eval_feasibility.py` — precision 1.0000, recall 1.0000 against an independent SQL oracle |
+| 5 | What "available" means while another driver decides | A definition and the state it needs | `slot_locks` + `claim()` in `src/setuhaul/capacity.py`; D5 below |
+| 6 | Option → hold → request → confirmed | The states, who moves each, what the driver sees | D6 below; `decide_appointment()`; testing step 8 |
+| 7 | Ordering simultaneous requests when capacity is short | A policy tested on competing trucks | `scripts/priority_test.py`, `docs/PRIORITY_POLICY_TEST.json` |
+| 8 | *(Optional)* Facility recalculation and objective | A rule, an objective, and one replay | `scripts/schedule_test.py`, `docs/SCHEDULING_TOOL.json` |
+| 9 | Stale options, cancellations, duplicates, retries | One replayed case for each | D9 below; the lapsed-commitment path, testing step 4 |
+| 10 | No feasible slot exists | The escalation message and the hand-off record | SHP1015; `escalation_record()`; testing step 7 |
+| 11 | Refusal wording | Two refusals in plain words | D11 below; testing steps 4 and 7 |
+| 12 | What needs human approval | A list with the trigger for each | D12 below; `/api/alerts` ranks them live |
+| 13 | Proving no double-booking | A concurrency test and its result | `scripts/race_test.py`, `docs/INTEGRITY_PROOF.json` — 20 contenders × 10 runs |
+
 ## PART 1 — THE 13 DECISIONS
 
 ### D1. What must be collected before showing options?
@@ -27,6 +49,13 @@ driver_id -> shipments WHERE current_status IN (ASSIGNED, IN_TRANSIT, WAITING).
 Binding is written once and is immutable for the thread.
 
 ### D3. ETA rule and confidence
+
+**Gate-in outranks any prediction.** An ETA is an estimate and earns a confidence buffer of
+up to 30 minutes. A truck standing in the yard is not an estimate: `apply_arrival()` replaces
+the predicted ETA with the observed `gate_in_ts` and sets confidence to HIGH, so the buffer
+goes to zero. Buffering a truck that is physically present pushes it past slots it could
+take. A truck already on a dock is a fixed task and is not offered slots at all.
+
 | Driver says | Rule | Confidence |
 |---|---|---|
 | explicit clock time ("11:20") | use it | HIGH |
@@ -72,19 +101,45 @@ Without this, two readers see one free slot and the race in the brief's figure h
 The driver is told the true state at every step. Never "confirmed" before CONFIRMED.
 
 ### D7. Ordering simultaneous requests when capacity is short (THE policy)
-Deterministic, in this order:
-  1. hard feasibility (binary gate)
-  2. priority_code: CRITICAL > HIGH > NORMAL > LOW
-  3. existing appointment commitment (a truck about to miss a CONFIRMED slot
-     outranks a truck with no commitment)
-  4. earliest effective ETA (ready time)
-  5. earliest request timestamp (FIFO) - deterministic fairness tiebreak
-Hard rules:
-  - Physical early arrival does NOT jump the queue (SHP1003; brief: "early truck
-    does not automatically win")
-  - IN_PROGRESS work is NEVER preempted
-  - A CONFIRMED booking is never displaced automatically - human approval only
-Metric: priority-policy violations = 0, checked by a policy checker over the decision log.
+
+**The first version of this answer was wrong, and the code proved it.** It specified a
+deterministic sort over competing requests — priority, then commitment, then ETA, then
+FIFO. That function (`rank_requests`) was written, tested by eye, and **never called once**,
+because requests do not arrive as a list. They arrive one at a time, seconds apart. Sorting
+a batch is the wrong shape for an online service. The function has now been deleted rather
+than left to contradict this document.
+
+The real question is narrower: *when this driver asks, may they take this slot, given who
+else is waiting?*
+
+**The policy.** A lower-priority truck may not take the **last** slot a higher-priority
+truck could use, **while the lower-priority truck still has an alternative of its own.**
+
+Both halves carry weight. Without the first, a CRITICAL reefer loses its only bay to a LOW
+load that had four other choices. Without the second, we starve the driver actually in
+front of us to protect one who may never ask.
+
+**Where it runs.** `priority_gate()` filters the feasible set *before anything is shown*. A
+slot withheld there was never offered, which is the only moment priority can be honoured
+without taking a booking back. Re-allocating after a promise is a human decision — see the
+brief's boundary, "whether a booking committed in the system of record".
+
+**What never happens:** physical early arrival does not jump the queue; IN_PROGRESS work is
+never preempted; a CONFIRMED booking is never displaced automatically.
+
+**Evidence** — `scripts/priority_test.py`:
+
+- On the brief's level-4 trucks (SHP1006, SHP1012, SHP1013, SHP1014, SHP1009): **0 policy
+  violations**, and nothing withheld. The gate does not interfere when capacity is adequate.
+- That alone is a **vacuous pass** — no truck in the snapshot is down to a single option, so
+  the gate never engages and the test could not fail. The script therefore also manufactures
+  the scarcity: with CRITICAL SHP1014 reduced to one feasible chain, **D4 13:00–14:00 is
+  withheld from NORMAL SHP1013 and protected for SHP1014**.
+- And when that same slot is also SHP1013's only option, it is **offered anyway**.
+
+Every withheld slot is written to `decision_audit` as `priority_withheld`, carrying the slot,
+who it was protected for, and both priorities — so "why did driver B not get 18:00?" is
+answerable weeks later.
 
 ### D8. (Optional) Scheduler objective
 Objective, in plain words: minimise weighted driver waiting, then missed appointments,
@@ -92,11 +147,21 @@ then changes to a schedule already told to a driver (churn).
 Start with a transparent dispatch rule; CP-SAT only if the rule is beaten measurably.
 
 ### D9. Stale options, cancellations, duplicates, retries
-  duplicates  -> driver_exceptions.dedupe_key (driver-shipment-date-hhmm).
+  duplicates  -> dedupe_key = driver-shipment-YYYYMMDD-sha1(normalised text)[:8].
+                 NOTE: keyed on the DAY, not the minute, and it ignores thread_id. So the
+                 same wording from the same driver about the same shipment replays for the
+                 rest of that day, across threads. That is right for a retry and wrong for
+                 a driver who genuinely sends the same short message twice - a known
+                 limitation, recorded rather than hidden.
                  THR009 is a byte-identical retry of THR001: suppress, do not re-process.
   retries     -> every write carries an idempotency key = dedupe_key + action
   stale offer -> revalidated at commit; if lost, re-offer immediately with reason
   cancelled   -> SHP1019 is CANCELLED: answer the question, offer nothing
+  lapsed      -> a CONFIRMED window whose end time has passed while the truck is still in
+                 the yard is NOT reported as confirmed. commitment_state() classifies every
+                 commitment against the clock as upcoming / in_window / being_served /
+                 lapsed. SHP1005 holds D3 09:00-10:00; at 10:05 the service used to answer
+                 "confirmed", which was true of the row and false of the world.
 Metric: duplicate suppression = 1.00.
 
 ### D10. No feasible slot exists
@@ -131,6 +196,14 @@ Expected: exactly 1 appointment row, 19 clean "lost the race" paths, 0 exception
 surfaced to a driver as a broken promise, 19 re-offers made.
 The partial unique index is the arbiter; the application turns the UNIQUE violation
 into a graceful re-offer. Run against the real schema, recorded, and repeated 10x.
+
+The index now also enforces this on Postgres, which is the engine the deployed service
+uses: inserting a second active appointment onto a taken slot is refused by
+`ux_active_appointment_per_slot`, verified directly against the live database. This matters
+because the earlier SQLite demo could not have proved it - Lambda's /tmp is per execution
+environment, so two warm containers held two different database files and could have sold
+the same slot twice. No Lambda setting fixes that; reserved concurrency caps simultaneous
+executions, not the number of warm environments. One shared Postgres does.
 
 ---
 

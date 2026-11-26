@@ -238,14 +238,6 @@ def rank_options(cands: list[Candidate]) -> list[Candidate]:
     """Within one request: least waiting first, then a stable dock order."""
     return sorted(cands, key=lambda c: (c.start, c.dock_code))
 
-def rank_requests(ctxs: list[Ctx]) -> list[Ctx]:
-    """D7. Across competing requests. Physical arrival does NOT appear here, deliberately."""
-    return sorted(ctxs, key=lambda c: (
-        PRIORITY_RANK.get(c.priority_code, 9),
-        0 if c.has_commitment else 1,
-        c.effective_eta,
-        c.requested_at or datetime.max.replace(tzinfo=c.effective_eta.tzinfo)))
-
 def claim(con, slot_ids, thread_id, shipment_id, now, ttl=HOLD_TTL_SECONDS) -> bool:
     """Atomic, expiry-aware, no reaper. 0 rows changed == lost the race.
     Identical statement works in Postgres; `now` is a bound parameter, never an index predicate."""

@@ -1,209 +1,196 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { board, why, audit, drivers, pending, decide, alerts } from "../../lib/api";
+import Link from "next/link";
+import { opsOverview, pending, decide } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { BarChart, Split, Stat } from "../../components/charts";
 
-const hm = (ts) => (ts || "").slice(11, 16);
-
-function state(r) {
-  if (r.outage) return ["outage", "var(--out)"];
-  if (r.slot_status !== "OPEN") return ["blocked", "var(--out)"];
-  if (r.appt_status === "CONFIRMED" || r.appt_status === "IN_PROGRESS") return ["booked", "var(--booked)"];
-  if (r.appt_status) return ["pending", "var(--hold)"];
-  if (r.held_by) return ["held", "var(--hold)"];
-  return ["open", "var(--ok)"];
-}
+const SEV = { critical: "Act now", high: "Act now", medium: "Watch", low: "For info" };
 
 export default function Console() {
-  // The API refuses a driver on every coordinator endpoint, so this is not the control -
-  // it just stops a driver landing on a page of permission errors.
   const { user } = useSession();
-  const router = useRouter();
-  useEffect(() => {
-    if (user && user.role === "driver") router.replace("/");
-  }, [user, router]);
-  if (user && user.role === "driver") return null;
-  const [rows, setRows] = useState([]);
-  const [log, setLog] = useState([]);
-  const [ds, setDs] = useState([]);
-  const [pick, setPick] = useState("");
-  const [w, setW] = useState(null);
+  const [d, setD] = useState(null);
+  const [queue, setQueue] = useState([]);
   const [err, setErr] = useState(null);
-  const [pend, setPend] = useState([]);
   const [busy, setBusy] = useState("");
 
-  const refresh = () => {
-    board().then(setRows).catch((e) => setErr(String(e)));
-    audit().then(setLog).catch(() => {});
-    pending().then(setPend).catch(() => {});
+  const load = () => {
+    opsOverview().then(setD).catch((e) => setErr(e.message));
+    pending().then(setQueue).catch(() => {});
   };
-  useEffect(() => { refresh(); drivers().then(setDs).catch(() => {}); }, []);
-  useEffect(() => { if (pick) why(pick).then(setW).catch((e) => setErr(String(e))); }, [pick]);
+  useEffect(() => { if (user && user.role !== "driver") load(); }, [user]);
 
-  const act = async (id, accept) => {
-    setBusy(id); setErr(null);
-    try {
-      const out = await decide({ appointment_id: id, accept, actor: "warehouse",
-                                 reason: accept ? null : "WAREHOUSE_REJECTED" });
-      if (out.already) setErr(`${id} was already ${out.already}`);
-    } catch (e) { setErr(String(e)); }
-    finally { setBusy(""); refresh(); }
-  };
+  if (!user) return null;
+  if (user.role === "driver")
+    return <main className="pad"><p className="empty">This page is for coordinators.</p></main>;
+  if (err) return <main className="pad"><p className="empty">{err}</p></main>;
+  if (!d) return <main className="pad"><p className="empty">Loading operations…</p></main>;
 
-  const facs = [...new Set(rows.map((r) => r.facility_id))];
-  const times = [...new Set(rows.map((r) => hm(r.slot_start_ts)))].sort();
+  async function act(appointment_id, accept) {
+    setBusy(appointment_id);
+    try { await decide({ appointment_id, accept }); load(); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(""); }
+  }
 
+  const m = d.metrics || {};
   return (
-    <main className="wrap" style={{ paddingBlock: 22, display: "flex", flexDirection: "column",
-                                    gap: 20 }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <div><p className="eyebrow">coordinator</p><h1>Dock board</h1></div>
-        <button onClick={refresh} style={{ marginLeft: "auto" }}>Refresh</button>
-      </div>
-
-      {err && <div className="card" style={{ borderLeft: "3px solid var(--stop)" }}>
-        <strong>API error.</strong> <span className="mono" style={{ fontSize: 12 }}>{err}</span></div>}
-
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {[["open", "var(--ok)"], ["held 120s", "var(--hold)"], ["booked", "var(--booked)"],
-          ["blocked or dock down", "var(--out)"]].map(([l, c]) => (
-          <span key={l} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12,
-                                 color: "var(--muted)" }}>
-            <i style={{ width: 11, height: 11, background: c, borderRadius: 2 }} />{l}</span>))}
-      </div>
-
-
-      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <main className="pad">
+      <header className="phead">
         <div>
-          <p className="eyebrow">warehouse</p>
+          <p className="eyebrow">Operations · {user.display_name}</p>
+          <h1>Today at {d.scope}</h1>
+        </div>
+        <p className="clock">{d.now}</p>
+      </header>
+
+      <section className="statrow">
+        <Stat n={d.attention_total} label="trucks needing a decision"
+              tone={d.attention_total ? "warn" : "ok"} />
+        <Stat n={queue.length} label="awaiting your acceptance" tone={queue.length ? "warn" : ""} />
+        <Stat n={d.dock_summary.free} label="docks free now" tone="ok" />
+        <Stat n={d.dock_summary.out} label="docks out of service"
+              tone={d.dock_summary.out ? "bad" : ""} />
+      </section>
+
+      <div className="twocol">
+        <section className="card">
+          <h2>Dock capacity right now</h2>
+          <Split total={d.dock_summary.total} parts={[
+            { label: "unloading", value: d.dock_summary.busy, color: "var(--booked)" },
+            { label: "free",      value: d.dock_summary.free, color: "var(--ok)" },
+            { label: "out",       value: d.dock_summary.out,  color: "var(--out)" },
+          ]} />
+          {/* Both facilities have a D1, a D2 and a D3, so a dock code alone is ambiguous -
+              the table listed each twice with nothing to tell them apart. Group by
+              facility and the code is unique again within its group. */}
+          <table className="grid">
+            <thead><tr><th>Dock</th><th>Type</th><th>State</th><th>Booked ahead</th></tr></thead>
+            <tbody>
+              {[...new Set(d.docks.map((k) => k.facility_id))].flatMap((fid) => {
+                const inFac = d.docks.filter((k) => k.facility_id === fid);
+                return [
+                  <tr key={fid} className="grouphead">
+                    <th colSpan={4}>{inFac[0].facility_name} <em>{fid}</em></th>
+                  </tr>,
+                  ...inFac.map((k) => (
+                <tr key={k.dock_id}>
+                  <td className="mono">{k.dock_code}</td>
+                  <td>{k.dock_type}</td>
+                  <td>
+                    {k.outage ? <span className="pill p-out">{k.outage}</span>
+                      : k.busy_with ? <span className="pill p-busy">unloading {k.busy_with}</span>
+                      : <span className="pill p-ok">free</span>}
+                  </td>
+                  <td>{k.upcoming}</td>
+                </tr>
+              ))];
+              })}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="card">
+          <h2>When the day is busy</h2>
+          <p className="sub">Appointments already committed, by start hour.</p>
+          <BarChart data={d.load_chart} />
+        </section>
+      </div>
+
+      {queue.length > 0 && (
+        <section className="card">
           <h2>Waiting for you to accept</h2>
-          <p style={{ color: "var(--muted)", fontSize: 13, margin: "4px 0 0" }}>
-            The agent holds a slot and tells the driver it is <em>not</em> confirmed. It stays
-            that way until somebody here answers. Nothing is promised to the driver in between.
+          <p className="sub">
+            The driver has been told these are held, not confirmed. Nothing is promised
+            until you accept.
           </p>
-        </div>
-        {pend.length === 0
-          ? <p className="mono" style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
-              nothing awaiting a decision</p>
-          : <div className="scroll"><table style={{ minWidth: 700 }}>
-              <thead><tr><th>shipment</th><th>dock</th><th>window</th><th>load</th>
-                <th style={{ textAlign: "right" }}>decision</th></tr></thead>
+          <table className="grid">
+            <thead><tr><th>Shipment</th><th>Driver</th><th>Dock</th><th>Window</th><th>Priority</th><th></th></tr></thead>
+            <tbody>
+              {queue.map((q) => (
+                <tr key={q.appointment_id}>
+                  <td className="mono">{q.shipment_id}</td>
+                  <td className="mono">{q.driver_id}</td>
+                  <td className="mono">{q.dock_code}</td>
+                  <td>{(q.starts || "").slice(11, 16)}–{(q.ends || "").slice(11, 16)}</td>
+                  <td><span className={`pill p-${(q.priority_code||"").toLowerCase()}`}>{q.priority_code}</span></td>
+                  <td className="actions">
+                    <button className="primary small" disabled={busy === q.appointment_id}
+                            onClick={() => act(q.appointment_id, true)}>Accept</button>
+                    <button className="ghost small" disabled={busy === q.appointment_id}
+                            onClick={() => act(q.appointment_id, false)}>Reject</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      <section className="card">
+        <h2>Trucks needing a decision</h2>
+        <p className="sub">Worst first: a passed window, then no dock, then waiting on you.</p>
+        {d.attention.length === 0
+          ? <p className="empty">Nothing outstanding.</p>
+          : <table className="grid">
+              <thead><tr><th>Shipment</th><th>Driver</th><th>Customer</th><th>Priority</th>
+                         <th>ETA</th><th>Why</th></tr></thead>
               <tbody>
-                {pend.map((a) => (
-                  <tr key={a.appointment_id}>
-                    <td className="mono"><strong>{a.shipment_id}</strong>{" "}
-                      <span style={{ color: "var(--muted)" }}>{a.driver_id}</span></td>
-                    <td className="mono">{a.dock_code}{" "}
-                      <span style={{ color: "var(--muted)" }}>{a.facility_id}</span></td>
-                    <td className="mono">{hm(a.starts)}–{hm(a.ends)}</td>
-                    <td><span className="tag t-muted">{a.priority_code}</span>{" "}
-                      <span className="tag t-muted">{a.required_dock_type}</span>{" "}
-                      <span className="tag t-muted">{a.expected_unload_min} min</span></td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                      <button disabled={busy === a.appointment_id}
-                              onClick={() => act(a.appointment_id, true)}>Accept</button>{" "}
-                      <button disabled={busy === a.appointment_id}
-                              onClick={() => act(a.appointment_id, false)}
-                              style={{ borderColor: "var(--stop)", color: "var(--stop)" }}>
-                        Reject</button>
-                    </td>
-                  </tr>))}
+                {d.attention.map((a) => (
+                  <tr key={a.shipment_id}>
+                    <td className="mono">{a.shipment_id}</td>
+                    <td>{a.driver}</td>
+                    <td className="trunc">{a.customer}</td>
+                    <td><span className={`pill p-${a.priority.toLowerCase()}`}>{a.priority}</span></td>
+                    <td className="mono">{a.eta}</td>
+                    <td>{a.why}</td>
+                  </tr>
+                ))}
               </tbody>
-            </table></div>}
+            </table>}
       </section>
 
-      {facs.map((f) => {
-        const docks = [...new Set(rows.filter((r) => r.facility_id === f)
-                                      .map((r) => `${r.dock_code}|${r.dock_type}`))];
-        return (
-          <section key={f} className="card scroll">
-            <h3 style={{ marginBottom: 10 }}>{f}</h3>
-            <table style={{ minWidth: 760 }}>
-              <thead><tr><th>dock</th>{times.map((t) => <th key={t} className="mono">{t}</th>)}</tr></thead>
-              <tbody>
-                {docks.map((d) => {
-                  const [code, type] = d.split("|");
-                  return (
-                    <tr key={d}>
-                      <td className="mono" style={{ whiteSpace: "nowrap" }}>
-                        <strong>{code}</strong> <span style={{ color: "var(--muted)" }}>{type}</span>
-                      </td>
-                      {times.map((t) => {
-                        const r = rows.find((x) => x.facility_id === f && x.dock_code === code
-                                                && hm(x.slot_start_ts) === t);
-                        if (!r) return <td key={t} />;
-                        const [lbl, col] = state(r);
-                        return (
-                          <td key={t} title={`${r.slot_id} — ${lbl}${r.appt_shipment ? " " + r.appt_shipment : ""}${r.outage ? " " + r.outage : ""}`}
-                              style={{ padding: 3 }}>
-                            <div style={{ background: col, opacity: lbl === "open" ? .22 : .85,
-                                          borderRadius: 2, height: 24, display: "flex",
-                                          alignItems: "center", justifyContent: "center",
-                                          fontSize: 9.5, fontFamily: "var(--ff-mono)",
-                                          color: lbl === "open" ? "var(--fg)" : "#fff" }}>
-                              {r.appt_shipment ? r.appt_shipment.replace("SHP", "") : lbl === "open" ? "" : lbl[0].toUpperCase()}
-                            </div>
-                          </td>);
-                      })}
-                    </tr>);
-                })}
-              </tbody>
-            </table>
-          </section>);
-      })}
+      {d.alerts?.length > 0 && (
+        <section className="card alerts">
+          <h2>From the agent</h2>
+          <p className="sub">Every one of these is a decision the agent declined to take alone.</p>
+          {d.alerts.map((a, i) => (
+            <div className={`alert ${a.severity === "critical" || a.severity === "high"
+                               ? "critical" : a.severity === "medium" ? "warn" : "info"}`} key={a.audit_id}>
+              <div className="atop">
+                <span className="tag">{SEV[a.severity] || "For info"}</span>
+                <b>{a.label}</b>
+                <span className="muted">{a.shipment_id} · {(a.at || "").slice(11, 16)}</span>
+              </div>
+              <p>
+                {a.route_blocker
+                  ? `Nobody will be told: ${a.route_blocker}. This needs a person now.`
+                  : a.reason || "Handed over for a person to decide."}
+              </p>
+            </div>
+          ))}
+        </section>
+      )}
 
-      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div>
-          <p className="eyebrow">why this answer</p>
-          <h2>Every candidate, and why each was refused</h2>
+      <section className="card">
+        <h2>How the service is doing today</h2>
+        <div className="mrow">
+          <Stat n={m.automation_share != null
+                     ? `${Math.round(m.automation_share * 100)}%` : "—"}
+                label="resolved without a person" />
+          <Stat n={m.handed_to_human ?? "—"} label="passed to a person" />
+          <Stat n={m.conflicting_allocations ?? 0} label="double bookings"
+                tone={m.conflicting_allocations ? "bad" : "ok"} />
+          <Stat n={m.slot_utilisation != null
+                     ? `${Math.round(m.slot_utilisation * 100)}%` : "—"}
+                label="slots in use" />
+          <Stat n={m.wait_avg_gate_to_dock_min ?? "—"} label="avg gate→dock (min)" />
+          <Stat n={m.duplicates_replayed ?? "—"} label="duplicates replayed" />
         </div>
-        <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ maxWidth: 420 }}>
-          <option value="">— pick a shipment —</option>
-          {ds.flatMap((d) => d.shipments).map((s) => <option key={s.shipment_id} value={s.shipment_id}>
-            {s.shipment_id} · {s.priority_code} · {s.required_dock_type} · {s.expected_unload_min} min
-          </option>)}
-        </select>
-        {w && <>
-          <p className="mono" style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
-            eta {hm(w.effective_eta + ":00")} {w.confidence} · ready {w.ready_at} ·
-            {" "}{w.required_dock_type} · {w.unload_minutes} min · {w.priority} ·
-            {" "}<strong style={{ color: "var(--fg)" }}>{w.feasible} of {w.considered} feasible</strong>
-          </p>
-          {w.accepted.length > 0 && <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-            {w.accepted.map((a, i) => <span key={a.label} className={`tag ${i === 0 ? "t-ok" : "t-muted"}`}>
-              {i === 0 ? "would offer → " : ""}{a.dock} {a.start}–{a.end}</span>)}
-          </div>}
-          {w.feasible === 0 && <p className="tag t-stop" style={{ alignSelf: "flex-start" }}>
-            nothing feasible — must escalate</p>}
-          <div className="scroll"><table>
-            <thead><tr><th>candidate</th><th>refused because</th></tr></thead>
-            <tbody>{w.rejected.map((r) => <tr key={r.label}>
-              <td className="mono" style={{ whiteSpace: "nowrap" }}>{r.dock} {r.start}</td>
-              <td>{r.reasons.join(" · ")}</td></tr>)}</tbody>
-          </table></div>
-        </>}
-      </section>
-
-      <section className="card scroll">
-        <p className="eyebrow">audit trail</p>
-        <h2 style={{ marginBottom: 10 }}>Append-only decision log</h2>
-        <table><thead><tr><th>when</th><th>box</th><th>decision</th><th>shipment</th>
-          <th>thread</th><th>detail</th></tr></thead>
-          <tbody>{log.map((a) => <tr key={a.audit_id}>
-            <td className="mono">{hm(a.ts)}</td>
-            <td className="mono">{a.box}</td>
-            <td><span className={`tag ${a.decision === "escalated" || a.decision === "refused_injection"
-                   ? "t-stop" : a.decision === "auto" ? "t-ok" : "t-hold"}`}>{a.decision}</span></td>
-            <td className="mono">{a.shipment_id || ""}</td>
-            <td className="mono">{a.thread_id || ""}</td>
-            <td className="mono" style={{ fontSize: 10.5, color: "var(--muted)",
-                                          maxWidth: 320, overflow: "hidden",
-                                          textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                title={a.detail_json || ""}>{a.detail_json || a.request_id}</td>
-          </tr>)}</tbody></table>
-        {log.length === 0 && <p style={{ fontSize: 13, color: "var(--muted)" }}>
-          No decisions yet. Send a driver message first.</p>}
+        <p className="sub">
+          Full board and the decision log: <Link href="/board">dock board</Link> ·{" "}
+          <Link href="/audit">audit trail</Link>
+        </p>
       </section>
     </main>
   );

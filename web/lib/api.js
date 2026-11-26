@@ -38,3 +38,6 @@ export const me       = ()  => j("/api/auth/me");
 export const changePw = (b) => j("/api/auth/change-password",
                                  { method: "POST", body: JSON.stringify(b) });
 export const issueReset = (b) => j("/api/auth/reset", { method: "POST", body: JSON.stringify(b) });
+
+export const myTrips    = ()  => j("/api/me/trips");
+export const opsOverview = () => j("/api/ops/overview");

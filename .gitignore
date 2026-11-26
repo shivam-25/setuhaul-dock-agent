@@ -17,3 +17,4 @@ lambda.zip
 .env.local
 web/.env.local
 credentials.local.md
+web/.env.production

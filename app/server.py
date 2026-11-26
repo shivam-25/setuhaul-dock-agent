@@ -17,7 +17,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from setuhaul.agent import handle
 from setuhaul.capacity import (dt_, load_ctx, candidates, rank_options, pending_acceptances,
                                decide_appointment, audit as write_audit,
-                               open_alerts, operations_metrics)
+                               open_alerts, operations_metrics, commitment_state,
+                               PRIORITY_RANK, ts)
 
 BASE = pathlib.Path(os.environ.get("SETUHAUL_BASE_DB", ROOT / "work" / "setuhaul_work.db"))
 LIVE = pathlib.Path(os.environ.get("SETUHAUL_LIVE_DB", ROOT / "work" / "live.db"))
@@ -344,6 +345,241 @@ def metrics(user: dict = Depends(require_role("coordinator","warehouse")), ):
     con = db()
     try:
         return operations_metrics(con)
+    finally:
+        con.close()
+
+
+
+# ---------------------------------------------------------------- dashboards
+# The six stages come from the brief's "follow one truck". facility_checkins already
+# records each timestamp, so progress is read from the data rather than inferred from a
+# status string that can disagree with it.
+STAGES = [("departed", "Departed"), ("gate_in_ts", "At gate"), ("yard_queue_enter_ts", "In yard"),
+          ("dock_in_ts", "On dock"), ("unload_start_ts", "Unloading"), ("gate_out_ts", "Released")]
+
+
+def _trip_rows(con, where, params, now_ts):
+    return con.execute(f"""
+        SELECT s.shipment_id, s.order_reference, s.customer_name, s.origin_city,
+               s.destination_facility_id, s.priority_code, s.current_status,
+               s.required_dock_type, s.load_weight_kg, s.pallet_count, s.product_category,
+               s.expected_unload_min, s.planned_departure_ts, s.actual_departure_ts,
+               s.original_eta_ts, d.driver_name, d.driver_id, f.facility_name,
+               COALESCE(v.effective_eta_ts, s.original_eta_ts) AS eta,
+               COALESCE(v.eta_confidence, 'HIGH')              AS eta_conf,
+               c.gate_in_ts, c.yard_queue_enter_ts, c.dock_in_ts, c.unload_start_ts,
+               c.unload_end_ts, c.gate_out_ts, c.queue_position,
+               (SELECT a.appointment_id FROM appointments a WHERE a.shipment_id=s.shipment_id
+                 AND a.is_current=1 AND a.appointment_status IN
+                 ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS') LIMIT 1) AS appt_id,
+               (SELECT a.appointment_status FROM appointments a WHERE a.shipment_id=s.shipment_id
+                 AND a.is_current=1 AND a.appointment_status IN
+                 ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS') LIMIT 1) AS appt_status,
+               (SELECT dk.dock_code FROM appointments a
+                 JOIN appointment_slots sl ON sl.slot_id=a.slot_id
+                 JOIN docks dk ON dk.dock_id=sl.dock_id
+                 WHERE a.shipment_id=s.shipment_id AND a.is_current=1 AND a.appointment_status IN
+                 ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS') LIMIT 1) AS dock_code,
+               (SELECT sl.slot_start_ts FROM appointments a
+                 JOIN appointment_slots sl ON sl.slot_id=a.slot_id
+                 WHERE a.shipment_id=s.shipment_id AND a.is_current=1 AND a.appointment_status IN
+                 ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS') LIMIT 1) AS slot_start,
+               (SELECT sl.slot_end_ts FROM appointments a
+                 JOIN appointment_slots sl ON sl.slot_id=a.slot_id
+                 WHERE a.shipment_id=s.shipment_id AND a.is_current=1 AND a.appointment_status IN
+                 ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS') LIMIT 1) AS slot_end
+        FROM shipments s
+        JOIN drivers d   ON d.driver_id = s.driver_id
+        JOIN facilities f ON f.facility_id = s.destination_facility_id
+        LEFT JOIN v_latest_eta v ON v.shipment_id = s.shipment_id
+        LEFT JOIN facility_checkins c ON c.shipment_id = s.shipment_id
+        WHERE {where}
+        ORDER BY s.original_eta_ts""", params).fetchall()
+
+
+def _trip_alerts(con, d, now):
+    """What this driver must be told without having to ask."""
+    out = []
+    sid = d["shipment_id"]
+    if d["appt_id"]:
+        phase = commitment_state(con, sid, now)
+        if phase == "lapsed":
+            out.append({"level": "critical", "title": "Your booked window has passed",
+                        "body": f"Dock {d['dock_code']} {fmt_hm(d['slot_start'])}-"
+                                f"{fmt_hm(d['slot_end'])} is no longer valid. A coordinator "
+                                f"is finding you a new one.",
+                        "action": "ask", "ask": "My booked window has passed. What now?"})
+        elif phase == "being_served":
+            out.append({"level": "ok", "title": f"Unloading at dock {d['dock_code']}",
+                        "body": "Nothing to do. You are on the dock now."})
+        elif d["appt_status"] == "PENDING_CONFIRMATION":
+            out.append({"level": "warn", "title": "Held, waiting for the warehouse",
+                        "body": f"Dock {d['dock_code']} {fmt_hm(d['slot_start'])} is held for "
+                                f"you but not yet accepted. Do not rely on it until it is.",
+                        "action": "ask", "ask": "Has the warehouse accepted my slot yet?"})
+        elif phase == "in_window":
+            out.append({"level": "ok", "title": f"Your window is open now",
+                        "body": f"Dock {d['dock_code']} until {fmt_hm(d['slot_end'])}."})
+    elif d["current_status"] in ("IN_TRANSIT", "WAITING", "ASSIGNED"):
+        out.append({"level": "warn", "title": "No dock booked yet",
+                    "body": "Tell us your delay and we will find you a slot.",
+                    "action": "ask", "ask": "I am running late. What slots can I get?"})
+    if d["delay_min"] >= 30 and d["appt_id"]:
+        out.append({"level": "warn", "title": f"Running {d['delay_min']} minutes behind",
+                    "body": "Your booked window may no longer fit. Worth checking.",
+                    "action": "ask", "ask": f"I am about {d['delay_min']} minutes late. "
+                                            f"Does my slot still work?"})
+    if d["queue_position"]:
+        out.append({"level": "info", "title": f"Position {d['queue_position']} in the yard queue",
+                    "body": "You are checked in and waiting for a dock."})
+    return out
+
+
+def fmt_hm(t):
+    return (t or "")[11:16]
+
+
+@app.get("/api/me/trips")
+def my_trips(user: dict = Depends(current_user), now: str | None = None):
+    """Everything a driver's home screen needs, in one call."""
+    n = dt_(now or DEFAULT_NOW)
+    where, params = scope_clause(user)
+    con = db()
+    try:
+        rows = _trip_rows(con, where, params, ts(n))
+        trips = []
+        for r in rows:
+            d = dict(r)
+            done, stage_now = [], None
+            for key, label in STAGES:
+                at = d["actual_departure_ts"] if key == "departed" else d.get(key)
+                done.append({"key": key, "label": label, "at": fmt_hm(at), "done": bool(at)})
+                if at:
+                    stage_now = label
+            d["stages"] = done
+            d["stage"] = stage_now or "Not departed"
+            eta = dt_(d["eta"]) if d["eta"] else None
+            plan = dt_(d["original_eta_ts"]) if d["original_eta_ts"] else None
+            d["delay_min"] = int((eta - plan).total_seconds() // 60) if eta and plan else 0
+            d["eta_hm"], d["plan_hm"] = fmt_hm(d["eta"]), fmt_hm(d["original_eta_ts"])
+            d["slot_hm"] = (f"{fmt_hm(d['slot_start'])}-{fmt_hm(d['slot_end'])}"
+                            if d["slot_start"] else None)
+            d["alerts"] = _trip_alerts(con, d, n)
+            trips.append(d)
+
+        # A driver's own record, so the numbers on their screen are about them.
+        active = [t for t in trips if t["current_status"] in
+                  ("ASSIGNED", "IN_TRANSIT", "WAITING", "IN_DOCK")]
+        booked = [t for t in active if t["appt_id"]]
+        late = [t for t in active if t["delay_min"] >= 15]
+        return {"now": fmt_hm(ts(n)), "trips": trips,
+                "summary": {"active": len(active), "booked": len(booked),
+                            "unbooked": len(active) - len(booked), "late": len(late),
+                            "alerts": sum(len(t["alerts"]) for t in trips),
+                            "critical": sum(1 for t in trips for a in t["alerts"]
+                                            if a["level"] == "critical")},
+                "delay_chart": [{"label": t["shipment_id"][-4:], "value": t["delay_min"],
+                                 "sub": t["customer_name"]} for t in active]}
+    finally:
+        con.close()
+
+
+@app.get("/api/ops/overview")
+def ops_overview(user: dict = Depends(require_role("coordinator", "warehouse")),
+                 now: str | None = None):
+    """One call behind the operations dashboard: the state of the day, plus the series the
+    charts draw. Scoped, so a warehouse user sees only their own facility."""
+    n = dt_(now or DEFAULT_NOW)
+    fac = user.get("facility_id")
+    con = db()
+    try:
+        fac_where = "AND dk.facility_id = ?" if fac else ""
+        fac_p = (fac,) if fac else ()
+
+        # Dock-by-dock state at this instant: what is on each dock and what is next.
+        docks = con.execute(f"""
+            SELECT dk.dock_id, dk.dock_code, dk.dock_type, dk.facility_id, f.facility_name,
+                   (SELECT e.event_type FROM dock_status_events e WHERE e.dock_id = dk.dock_id
+                     AND e.event_start_ts <= ? AND e.event_end_ts > ?)        AS outage,
+                   (SELECT a.shipment_id FROM appointments a
+                     JOIN appointment_slots sl ON sl.slot_id = a.slot_id
+                     WHERE sl.dock_id = dk.dock_id AND a.appointment_status = 'IN_PROGRESS')
+                                                                              AS busy_with,
+                   (SELECT COUNT(*) FROM appointment_slots sl
+                     JOIN appointments a ON a.slot_id = sl.slot_id AND a.is_current = 1
+                      AND a.appointment_status IN ('PENDING_CONFIRMATION','CONFIRMED')
+                     WHERE sl.dock_id = dk.dock_id AND sl.slot_start_ts >= ?) AS upcoming,
+                   (SELECT COUNT(*) FROM appointment_slots sl
+                     WHERE sl.dock_id = dk.dock_id AND sl.slot_status = 'OPEN'
+                       AND sl.slot_start_ts >= ?)                             AS open_slots
+            FROM docks dk JOIN facilities f ON f.facility_id = dk.facility_id
+            WHERE 1=1 {fac_where}
+            ORDER BY dk.facility_id, dk.dock_code""",
+            (ts(n), ts(n), ts(n), ts(n)) + fac_p).fetchall()
+
+        # Bookings per hour across the day - the shape of the facility's load.
+        by_hour = con.execute(f"""
+            SELECT SUBSTR(sl.slot_start_ts, 12, 2) AS hh,
+                   COUNT(*) AS booked
+            FROM appointments a
+            JOIN appointment_slots sl ON sl.slot_id = a.slot_id
+            JOIN docks dk ON dk.dock_id = sl.dock_id
+            WHERE a.is_current = 1
+              AND a.appointment_status IN ('PENDING_CONFIRMATION','CONFIRMED','IN_PROGRESS')
+              {fac_where}
+            GROUP BY hh ORDER BY hh""", fac_p).fetchall()
+        open_hour = con.execute(f"""
+            SELECT SUBSTR(sl.slot_start_ts, 12, 2) AS hh, COUNT(*) AS open
+            FROM appointment_slots sl JOIN docks dk ON dk.dock_id = sl.dock_id
+            WHERE sl.slot_status = 'OPEN' {fac_where}
+            GROUP BY hh ORDER BY hh""", fac_p).fetchall()
+        openmap = {r["hh"]: r["open"] for r in open_hour}
+
+        # Trucks that need someone to look at them, worst first.
+        where, params = scope_clause(user)
+        trips = _trip_rows(con, where, params, ts(n))
+        attention = []
+        for r in trips:
+            d = dict(r)
+            if d["current_status"] in ("COMPLETED", "CANCELLED"):
+                continue
+            eta = dt_(d["eta"]) if d["eta"] else None
+            plan = dt_(d["original_eta_ts"]) if d["original_eta_ts"] else None
+            delay = int((eta - plan).total_seconds() // 60) if eta and plan else 0
+            phase = commitment_state(con, d["shipment_id"], n) if d["appt_id"] else None
+            why = None
+            if phase == "lapsed":
+                why, rank = "Booked window has passed", 0
+            elif not d["appt_id"] and d["current_status"] in ("IN_TRANSIT", "WAITING"):
+                why, rank = "No dock booked", 1
+            elif d["appt_status"] == "PENDING_CONFIRMATION":
+                why, rank = "Waiting for warehouse to accept", 2
+            elif delay >= 30:
+                why, rank = f"{delay} min behind, slot may not fit", 3
+            if why:
+                attention.append({"shipment_id": d["shipment_id"], "driver": d["driver_name"],
+                                  "driver_id": d["driver_id"], "customer": d["customer_name"],
+                                  "priority": d["priority_code"], "why": why, "rank": rank,
+                                  "dock": d["dock_code"], "eta": fmt_hm(d["eta"]),
+                                  "delay_min": delay, "facility": d["facility_name"]})
+        attention.sort(key=lambda a: (a["rank"], PRIORITY_RANK.get(a["priority"], 9)))
+
+        m = operations_metrics(con)
+        busy = sum(1 for d in docks if d["busy_with"])
+        out_n = sum(1 for d in docks if d["outage"])
+        return {
+            "now": fmt_hm(ts(n)),
+            "scope": fac or "all facilities",
+            "docks": [dict(d) for d in docks],
+            "dock_summary": {"total": len(docks), "busy": busy, "out": out_n,
+                             "free": len(docks) - busy - out_n},
+            "attention": attention[:12],
+            "attention_total": len(attention),
+            "alerts": open_alerts(con, 8),
+            "metrics": m,
+            "load_chart": [{"label": f"{r['hh']}:00", "value": r["booked"],
+                            "sub": f"{openmap.get(r['hh'], 0)} open"} for r in by_hour],
+        }
     finally:
         con.close()
 

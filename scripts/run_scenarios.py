@@ -50,6 +50,11 @@ CASES = [
   "Where am I supposed to go?",NOW,
   "Gate check-in outranks any prediction. A truck unloading is a fixed task, not a "
   "scheduling candidate, and is offered nothing."),
+ ("L12","A window still open that the truck cannot make","THR-UNREACH","DRV006","SHP1006",
+  "I am about 60 minutes late. Does my slot still work?",NOW,
+  "D4 10:00-11:00 is open at 10:05, so the clock says confirmed. The driver is ready at "
+  "11:50. An open window and a reachable window are not the same thing, and only one of "
+  "them is a promise worth repeating."),
  ("L11","Two limits that cannot both be true","THR-CONTRA","DRV006","SHP1006",
   "Need something after 7, but I must finish by 1:30.",NOW,
   "A window that closes before it opens is a misreading, not a shortage. It asks which "

@@ -556,17 +556,56 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
                 ctxt = (f"The driver is already on dock {appt[2]} and unloading now. Tell them "
                         f"that in one short sentence. Do not offer other slots.")
             else:
-                when = "now" if phase == "in_window" else "later"
-                ctxt = (f"The driver is asking about their existing booking, not for new slots. "
-                        f"They have dock {appt[2]} from {st:%H:%M} to {en:%H:%M} ({when}). Its "
-                        f"status is {appt[1]}. Tell them that and nothing else. Do not offer "
-                        f"other slots.")
+                # A window that is still open is not the same as a window the driver can
+                # still make. SHP1006 holds D4 10:00-11:00; at 10:05 that window is open,
+                # but the driver has just said they are 90 minutes behind and will arrive
+                # at 11:20. Answering "confirmed" is true of the clock and false of the
+                # truck, and it is the exact false promise this system exists to prevent.
+                # ready_at, not the raw ETA: it is effective_eta plus the confidence
+                # buffer, and it is the same measure candidates() uses to decide whether a
+                # truck can make a slot. Using a different one here would mean the status
+                # answer and the options answer could disagree about the same slot.
+                eta_cmp = ctx.ready_at
+                if eta_cmp is not None and en.tzinfo is not None and eta_cmp.tzinfo is None:
+                    eta_cmp = eta_cmp.replace(tzinfo=en.tzinfo)
+                elif eta_cmp is not None and en.tzinfo is None and eta_cmp.tzinfo is not None:
+                    eta_cmp = eta_cmp.replace(tzinfo=None)
+                unreachable = eta_cmp is not None and eta_cmp > en
+
+                if unreachable:
+                    over = round((eta_cmp - en).total_seconds() / 60)
+                    box(7, "unreachable",
+                        f"booking on {appt[2]} ends {en:%H:%M} but the driver arrives "
+                        f"{eta_cmp:%H:%M}, {over} min after it closes - not reportable as live")
+                    audit(con, request_id=rid, box="7", decision="commitment_unreachable",
+                          shipment_id=shipment_id, thread_id=thread_id,
+                          detail={"appointment": appt[0], "dock": appt[2], "ends": ts(en),
+                                  "eta": ts(eta_cmp), "minutes_over": over}, now=now)
+                    opts = []
+                    status = "UNREACHABLE"
+                else:
+                    when = "now" if phase == "in_window" else "later"
+                    ctxt = (f"The driver is asking about their existing booking, not for new "
+                            f"slots. They have dock {appt[2]} from {st:%H:%M} to {en:%H:%M} "
+                            f"({when}). Its status is {appt[1]}. Tell them that and nothing "
+                            f"else. Do not offer other slots.")
         else:
             opts, status = [], "NOT_RESERVED"
             ctxt = ("The driver is asking whether they have a dock booked. They do NOT - nothing "
                     "is held or booked for them. Say that plainly, then say they can ask for "
                     "options and you will show what fits. Do not name any dock or time.")
-        if status == "LAPSED":
+        if status == "UNREACHABLE":
+            # Written in code for the same reason as LAPSED: this is a promise being
+            # withdrawn, and the wording has to be right every time. It names the dock it
+            # is taking away, not one it is offering, so C1/C3 do not apply.
+            text, ms, fails = (
+                f"Your booked window on dock {appt[2]} runs {st:%H:%M} to {en:%H:%M}, and on "
+                f"your own estimate you are ready at {eta_cmp:%H:%M} - after it closes. So that "
+                f"slot will not work, and I am not going to tell you it is still good. Ask me "
+                f"for options and I will show you what actually fits.", None, [])
+            box(11, "reply", "booking reported as unreachable, written in code")
+
+        elif status == "LAPSED":
             # The driver is standing in a yard past a window that no longer exists. This
             # sentence has to be exactly right every time, so it is not drafted: naming the
             # lapsed dock would also trip C1/C3, which police slots we are OFFERING.

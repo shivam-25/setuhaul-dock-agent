@@ -4,6 +4,34 @@ import Link from "next/link";
 import { opsOverview, pending, decide } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { BarChart, Split, Stat } from "../../components/charts";
+import { useTableControls, Toolbar, PRIORITIES, PRANK } from "../../components/table";
+
+const FAC_COLOURS = ["var(--fac-a)", "var(--fac-b)", "var(--busy)", "var(--free)"];
+function facColour(fid, all) {
+  const ids = [...new Set((all || []).map((k) => k.facility_id))].sort();
+  return FAC_COLOURS[ids.indexOf(fid) % FAC_COLOURS.length];
+}
+
+function Pri({ p }) {
+  return <span className={`pri p-${(p || "").toLowerCase()}`}>{p}</span>;
+}
+
+function DockRow({ k, withFac, colour }) {
+  return (
+    <tr>
+      {withFac && <td className="facn"><i className="fdot" style={{ background: colour }} />
+        {k.facility_id}</td>}
+      <td className="mono strong">{k.dock_code}</td>
+      <td className="muted">{k.dock_type}</td>
+      <td>
+        {k.outage ? <span className="state s-down">{k.outage.split(",")[0]}</span>
+          : k.busy_with ? <span className="state s-busy">unloading {k.busy_with}</span>
+          : <span className="state s-free">free</span>}
+      </td>
+      <td className="mono">{k.upcoming}</td>
+    </tr>
+  );
+}
 
 const SEV = { critical: "Act now", high: "Act now", medium: "Watch", low: "For info" };
 
@@ -19,6 +47,46 @@ export default function Console() {
     pending().then(setQueue).catch(() => {});
   };
   useEffect(() => { if (user && user.role !== "driver") load(); }, [user]);
+
+  const att = useTableControls(d?.attention || [], {
+    searchKeys: ["shipment_id", "driver", "customer", "priority", "why", "facility"],
+    filters: [
+      { key: "priority", label: "Priority", options: PRIORITIES,
+        test: (r, v) => r.priority === v },
+      { key: "why", label: "Reason",
+        options: [...new Set((d?.attention || []).map((r) => r.why))],
+        test: (r, v) => r.why === v },
+    ],
+    sorts: [
+      { key: "urgency", label: "Most urgent", value: (r) => r.rank * 10 + (PRANK[r.priority] ?? 9) },
+      { key: "delay",   label: "Most delayed", value: (r) => -(r.delay_min || 0) },
+      { key: "eta",     label: "Earliest ETA", value: (r) => r.eta || "99:99" },
+      { key: "ship",    label: "Shipment",     value: (r) => r.shipment_id },
+    ],
+  });
+
+  const dk = useTableControls(d?.docks || [], {
+    searchKeys: ["dock_code", "dock_type", "facility_name", "busy_with", "outage"],
+    filters: [
+      { key: "fac", label: "Facility",
+        options: [...new Set((d?.docks || []).map((k) => k.facility_id))],
+        test: (r, v) => r.facility_id === v },
+      { key: "type", label: "Type",
+        options: [...new Set((d?.docks || []).map((k) => k.dock_type))],
+        test: (r, v) => r.dock_type === v },
+      { key: "state", label: "State",
+        options: [{ value: "free", label: "Free" }, { value: "busy", label: "Unloading" },
+                  { value: "out", label: "Out of service" }],
+        test: (r, v) => v === "out" ? !!r.outage
+                      : v === "busy" ? !!r.busy_with && !r.outage
+                      : !r.outage && !r.busy_with },
+    ],
+    sorts: [
+      { key: "code", label: "Dock",         value: (r) => `${r.facility_id}${r.dock_code}` },
+      { key: "load", label: "Busiest",      value: (r) => -(r.upcoming || 0) },
+      { key: "open", label: "Most free",    value: (r) => -(r.open_slots || 0) },
+    ],
+  });
 
   if (!user) return null;
   if (user.role === "driver")
@@ -61,33 +129,35 @@ export default function Console() {
             { label: "free",      value: d.dock_summary.free, color: "var(--ok)" },
             { label: "out",       value: d.dock_summary.out,  color: "var(--out)" },
           ]} />
-          {/* Both facilities have a D1, a D2 and a D3, so a dock code alone is ambiguous -
-              the table listed each twice with nothing to tell them apart. Group by
-              facility and the code is unique again within its group. */}
+          <Toolbar ctl={dk} noun="docks" placeholder="Search docks…" />
+          {/* Both facilities have a D1, a D2 and a D3, so a dock code alone is ambiguous.
+              Grouping by facility makes it unique again - but only while the list is in
+              its natural order. Once someone sorts by busiest, a facility heading would
+              be a lie, so the facility moves into its own column instead. */}
+          <div className="scrollx">
           <table className="grid">
-            <thead><tr><th>Dock</th><th>Type</th><th>State</th><th>Booked ahead</th></tr></thead>
+            <thead><tr>{dk.sort !== "code" || dk.dir !== "asc" ? <th>Facility</th> : null}
+              <th>Dock</th><th>Type</th><th>State</th><th>Booked ahead</th></tr></thead>
             <tbody>
-              {[...new Set(d.docks.map((k) => k.facility_id))].flatMap((fid) => {
-                const inFac = d.docks.filter((k) => k.facility_id === fid);
-                return [
-                  <tr key={fid} className="grouphead">
-                    <th colSpan={4}>{inFac[0].facility_name} <em>{fid}</em></th>
-                  </tr>,
-                  ...inFac.map((k) => (
-                <tr key={k.dock_id}>
-                  <td className="mono">{k.dock_code}</td>
-                  <td>{k.dock_type}</td>
-                  <td>
-                    {k.outage ? <span className="pill p-out">{k.outage}</span>
-                      : k.busy_with ? <span className="pill p-busy">unloading {k.busy_with}</span>
-                      : <span className="pill p-ok">free</span>}
-                  </td>
-                  <td>{k.upcoming}</td>
-                </tr>
-              ))];
-              })}
+              {dk.sort === "code" && dk.dir === "asc"
+                ? [...new Set(dk.rows.map((k) => k.facility_id))].flatMap((fid) => {
+                    const inFac = dk.rows.filter((k) => k.facility_id === fid);
+                    return [
+                      <tr key={fid} className="grouphead">
+                        <th colSpan={4}>
+                          <i className="fdot" style={{ background: facColour(fid, d.docks) }} />
+                          {inFac[0].facility_name} <em>{fid}</em>
+                        </th>
+                      </tr>,
+                      ...inFac.map((k) => <DockRow k={k} key={k.dock_id} />),
+                    ];
+                  })
+                : dk.rows.map((k) => <DockRow k={k} key={k.dock_id} withFac
+                                              colour={facColour(k.facility_id, d.docks)} />)}
             </tbody>
           </table>
+          </div>
+          {dk.rows.length === 0 && <p className="empty">No dock matches that.</p>}
         </section>
 
         <section className="card">
@@ -113,7 +183,7 @@ export default function Console() {
                   <td className="mono">{q.driver_id}</td>
                   <td className="mono">{q.dock_code}</td>
                   <td>{(q.starts || "").slice(11, 16)}–{(q.ends || "").slice(11, 16)}</td>
-                  <td><span className={`pill p-${(q.priority_code||"").toLowerCase()}`}>{q.priority_code}</span></td>
+                  <td><Pri p={q.priority_code} /></td>
                   <td className="actions">
                     <button className="primary small" disabled={busy === q.appointment_id}
                             onClick={() => act(q.appointment_id, true)}>Accept</button>
@@ -130,24 +200,29 @@ export default function Console() {
       <section className="card">
         <h2>Trucks needing a decision</h2>
         <p className="sub">Worst first: a passed window, then no dock, then waiting on you.</p>
-        {d.attention.length === 0
-          ? <p className="empty">Nothing outstanding.</p>
-          : <table className="grid">
+        <Toolbar ctl={att} noun="trucks" placeholder="Search driver, customer, shipment…" />
+        {att.rows.length === 0
+          ? <p className="empty">
+              {d.attention.length ? "Nothing matches that filter." : "Nothing outstanding."}
+            </p>
+          : <div className="scrollx"><table className="grid">
               <thead><tr><th>Shipment</th><th>Driver</th><th>Customer</th><th>Priority</th>
-                         <th>ETA</th><th>Why</th></tr></thead>
+                         <th>ETA</th><th>Delay</th><th>Why</th></tr></thead>
               <tbody>
-                {d.attention.map((a) => (
+                {att.rows.map((a) => (
                   <tr key={a.shipment_id}>
                     <td className="mono">{a.shipment_id}</td>
                     <td>{a.driver}</td>
                     <td className="trunc">{a.customer}</td>
-                    <td><span className={`pill p-${a.priority.toLowerCase()}`}>{a.priority}</span></td>
+                    <td><Pri p={a.priority} /></td>
                     <td className="mono">{a.eta}</td>
-                    <td>{a.why}</td>
+                    <td className={"mono " + (a.delay_min >= 30 ? "warnfg" : "")}>
+                      {a.delay_min ? `+${a.delay_min}m` : "—"}</td>
+                    <td><span className={`why r${a.rank}`}>{a.why}</span></td>
                   </tr>
                 ))}
               </tbody>
-            </table>}
+            </table></div>}
       </section>
 
       {d.alerts?.length > 0 && (

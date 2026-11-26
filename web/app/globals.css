@@ -1,19 +1,61 @@
 :root{
-  --bg:#f6f5f1; --surface:#fff; --raise:#fbfaf7; --fg:#15171c; --muted:#5c636f;
-  --line:#dcdad2; --code:#1b6a58; --model:#6d44c8; --human:#b05a08; --stop:#a82518;
+  --bg:#f7f6f3; --surface:#fff; --raise:#faf9f6; --fg:#15171c; --muted:#5c636f;
+  --line:#e4e2db; --line-soft:#eeece6;
+  --code:#1b6a58; --model:#6d44c8; --human:#b05a08; --stop:#a82518;
   --ok:#1b6a58; --hold:#b05a08; --booked:#a82518; --out:#6b7280;
+
+  /* Priority is the one thing a coordinator scans for, so it gets a real scale rather
+     than four greys. Hue carries the urgency; the label still says the word, because
+     colour alone is not a reading anyone should have to make. */
+  --crit:#b3261e; --crit-bg:#fdeceb;
+  --high:#b05a08; --high-bg:#fdf1e3;
+  --norm:#1f5f9e; --norm-bg:#e9f1f9;
+  --low:#5c636f;  --low-bg:#f1f1ef;
+
+  /* Dock state. Distinct from priority on purpose - a free dock and a low-priority
+     truck should never read as the same thing. */
+  --free:#1b7a62; --free-bg:#e6f4f0;
+  --busy:#7b3fb8; --busy-bg:#f2ecfa;
+  --down:#6b7280; --down-bg:#f0f0f1;
+  --held:#a86a08; --held-bg:#fcf2e0;
+
+  /* Facilities, so two sites never blur together on a shared board. */
+  --fac-a:#1f5f9e; --fac-b:#8a5a13;
+
   --ff-disp:"Barlow Condensed",system-ui,sans-serif;
   --ff-body:Inter,system-ui,-apple-system,sans-serif;
   --ff-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
 }
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
-  --bg:#111318; --surface:#181b21; --raise:#1e222a; --fg:#e9eaee; --muted:#99a1ae;
-  --line:#2b303a; --code:#4ac3a4; --model:#a98bf0; --human:#e09a4e; --stop:#f08a7e;
-  --ok:#4ac3a4; --hold:#e09a4e; --booked:#f08a7e; --out:#8b93a1; color-scheme:dark; } }
+  --bg:#101216; --surface:#171a20; --raise:#1d212a; --fg:#e9eaee; --muted:#9aa2af;
+  --line:#2a2f39; --line-soft:#232832;
+  --code:#4ac3a4; --model:#a98bf0; --human:#e09a4e; --stop:#f08a7e;
+  --ok:#4ac3a4; --hold:#e09a4e; --booked:#f08a7e; --out:#8b93a1;
+  --crit:#f0877c; --crit-bg:#2e1a1a;
+  --high:#e5a259; --high-bg:#2c2318;
+  --norm:#73b2e8; --norm-bg:#16212c;
+  --low:#9aa2af;  --low-bg:#1f232b;
+  --free:#4ac3a4; --free-bg:#15271f;
+  --busy:#b79bf2; --busy-bg:#221c30;
+  --down:#8b93a1; --down-bg:#1e222a;
+  --held:#e0a84e; --held-bg:#2a2317;
+  --fac-a:#73b2e8; --fac-b:#d7a45e;
+  color-scheme:dark; } }
 :root[data-theme="dark"]{
-  --bg:#111318; --surface:#181b21; --raise:#1e222a; --fg:#e9eaee; --muted:#99a1ae;
-  --line:#2b303a; --code:#4ac3a4; --model:#a98bf0; --human:#e09a4e; --stop:#f08a7e;
-  --ok:#4ac3a4; --hold:#e09a4e; --booked:#f08a7e; --out:#8b93a1; color-scheme:dark; }
+  --bg:#101216; --surface:#171a20; --raise:#1d212a; --fg:#e9eaee; --muted:#9aa2af;
+  --line:#2a2f39; --line-soft:#232832;
+  --code:#4ac3a4; --model:#a98bf0; --human:#e09a4e; --stop:#f08a7e;
+  --ok:#4ac3a4; --hold:#e09a4e; --booked:#f08a7e; --out:#8b93a1;
+  --crit:#f0877c; --crit-bg:#2e1a1a;
+  --high:#e5a259; --high-bg:#2c2318;
+  --norm:#73b2e8; --norm-bg:#16212c;
+  --low:#9aa2af;  --low-bg:#1f232b;
+  --free:#4ac3a4; --free-bg:#15271f;
+  --busy:#b79bf2; --busy-bg:#221c30;
+  --down:#8b93a1; --down-bg:#1e222a;
+  --held:#e0a84e; --held-bg:#2a2317;
+  --fac-a:#73b2e8; --fac-b:#d7a45e;
+  color-scheme:dark; }
 
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -312,3 +354,81 @@ tr.grouphead th { background: var(--raise); font-size: 11px; letter-spacing: .1e
                   text-transform: uppercase; color: var(--fg); padding-top: 10px; }
 tr.grouphead em { font-style: normal; color: var(--muted); font-family: var(--ff-mono);
                   letter-spacing: 0; text-transform: none; margin-left: 6px; }
+
+/* ---------------------------------------------------------------- search, filter, sort */
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+           padding: 2px 0 4px; }
+.searchbox { position: relative; display: flex; align-items: center; flex: 1 1 230px;
+             min-width: 180px; max-width: 360px; }
+.searchbox .sicon { position: absolute; left: 10px; width: 14px; height: 14px;
+                    color: var(--muted); pointer-events: none; }
+.searchbox input { width: 100%; padding: 7px 28px 7px 30px; font-size: 13.5px;
+                   border: 1px solid var(--line); border-radius: 7px;
+                   background: var(--surface); color: var(--fg); }
+.searchbox input:focus { outline: none; border-color: var(--code);
+                         box-shadow: 0 0 0 3px color-mix(in srgb, var(--code) 14%, transparent); }
+.clearq { position: absolute; right: 6px; border: 0; background: none; cursor: pointer;
+          font-size: 16px; line-height: 1; color: var(--muted); padding: 2px 4px; }
+.clearq:hover { color: var(--fg); }
+
+.tfilter { display: flex; align-items: center; gap: 5px; font-size: 11px;
+           letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.tfilter select { font-size: 13px; padding: 6px 8px; border: 1px solid var(--line);
+                  border-radius: 7px; background: var(--surface); color: var(--fg);
+                  text-transform: none; letter-spacing: 0; max-width: 170px; }
+.dirbtn { border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+          border-radius: 7px; width: 28px; height: 30px; cursor: pointer; font-size: 13px; }
+.dirbtn:hover { border-color: var(--code); color: var(--code); }
+.tcount { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap;
+          display: flex; gap: 8px; align-items: center; }
+.clearall { border: 0; background: none; color: var(--code); cursor: pointer; font-size: 12px;
+            text-decoration: underline; padding: 0; }
+
+/* ---------------------------------------------------------------- colour with a job */
+.pri { font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+       padding: 2.5px 8px; border-radius: 5px; white-space: nowrap; display: inline-block; }
+.pri.p-critical { color: var(--crit); background: var(--crit-bg); }
+.pri.p-high     { color: var(--high); background: var(--high-bg); }
+.pri.p-normal   { color: var(--norm); background: var(--norm-bg); }
+.pri.p-low      { color: var(--low);  background: var(--low-bg); }
+
+.state { font-size: 11px; padding: 2.5px 8px; border-radius: 5px; white-space: nowrap;
+         display: inline-block; font-family: var(--ff-mono); }
+.state.s-free { color: var(--free); background: var(--free-bg); }
+.state.s-busy { color: var(--busy); background: var(--busy-bg); }
+.state.s-down { color: var(--down); background: var(--down-bg); }
+.state.d-auto  { color: var(--free); background: var(--free-bg); }
+.state.d-human { color: var(--high); background: var(--high-bg); }
+.state.d-ask   { color: var(--norm); background: var(--norm-bg); }
+
+.why { font-size: 12.5px; }
+.why.r0 { color: var(--crit); font-weight: 600; }
+.why.r1 { color: var(--high); }
+.why.r2 { color: var(--norm); }
+
+.fdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+        margin-right: 7px; vertical-align: middle; }
+td.facn { font-family: var(--ff-mono); font-size: 11.5px; color: var(--muted);
+          white-space: nowrap; }
+td.strong { font-weight: 600; }
+.cell.lit { outline: 2px solid var(--code); outline-offset: -2px; font-weight: 600; }
+
+.listhead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.listhead h2 { margin-right: auto; }
+.tiplist { padding-block: 12px; }
+
+/* ---------------------------------------------------------------- quieter surfaces
+   More colour where it means something, less everywhere else: hairlines instead of
+   boxes-within-boxes, and one weight of rule rather than three. */
+.card { border-color: var(--line-soft); box-shadow: none; }
+.stat { border-color: var(--line-soft); }
+table.grid th, table.grid td { border-bottom: 1px solid var(--line-soft); }
+table.grid tbody tr:last-child td { border-bottom: 0; }
+table.grid tbody tr:hover td { background: var(--raise); }
+.alert { background: transparent; border-color: var(--line-soft); }
+.alert.critical { background: color-mix(in srgb, var(--crit-bg) 60%, transparent); }
+.alert.warn     { background: color-mix(in srgb, var(--high-bg) 55%, transparent); }
+.pill { border-color: var(--line-soft); }
+
+.listhead.plain { padding-top: 4px; }
+.listhead.plain h2 { font-family: var(--ff-disp); font-size: 22px; margin: 0 auto 0 0; }

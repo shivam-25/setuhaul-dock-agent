@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { myTrips } from "../lib/api";
 import { useSession } from "../lib/session";
 import { BarChart, Progress, Stat } from "../components/charts";
+import { useTableControls, Toolbar, PRIORITIES, PRANK } from "../components/table";
 
 const LEVEL = { critical: "Act now", warn: "Check this", info: "For info", ok: "All good" };
 
@@ -17,6 +18,32 @@ export default function Home() {
     if (!user) return;
     myTrips().then(setD).catch((e) => setErr(e.message));
   }, [user]);
+
+  // A driver with three trips does not need a filter bar; one with twenty does. It
+  // appears at four, which is roughly where scanning stops working.
+  const tc = useTableControls(d?.trips || [], {
+    searchKeys: ["shipment_id", "customer_name", "origin_city", "facility_name",
+                 "priority_code", "stage", "dock_code"],
+    filters: [
+      { key: "state", label: "Show",
+        options: [{ value: "attention", label: "Needs attention" },
+                  { value: "booked", label: "Dock booked" },
+                  { value: "unbooked", label: "No dock yet" },
+                  { value: "late", label: "Running late" }],
+        test: (t, v) => v === "booked" ? !!t.appt_id
+                      : v === "unbooked" ? !t.appt_id
+                      : v === "late" ? t.delay_min >= 15
+                      : t.alerts.some((a) => a.level !== "ok") },
+      { key: "priority", label: "Priority", options: PRIORITIES,
+        test: (t, v) => t.priority_code === v },
+    ],
+    sorts: [
+      { key: "eta",   label: "Soonest arrival", value: (t) => t.eta_hm || "99:99" },
+      { key: "delay", label: "Most delayed",    value: (t) => -(t.delay_min || 0) },
+      { key: "pri",   label: "Priority",        value: (t) => PRANK[t.priority_code] ?? 9 },
+      { key: "cust",  label: "Customer",        value: (t) => t.customer_name },
+    ],
+  });
 
   if (!user) return null;
   if (err) return <main className="pad"><p className="empty">{err}</p></main>;
@@ -76,8 +103,16 @@ export default function Home() {
         </section>
       )}
 
+      {/* A filter bar over two trips is furniture. It appears at four, which is roughly
+          where a driver stops being able to scan the list. */}
+      <div className="listhead plain">
+        <h2>{d.trips.length >= 4 ? "All trips" : d.trips.length === 1 ? "Your trip" : "Your trips"}</h2>
+        {d.trips.length >= 4 && <Toolbar ctl={tc} noun="trips"
+                                         placeholder="Search customer, city, shipment…" />}
+      </div>
+
       <section className="trips">
-        {d.trips.map((t) => (
+        {(d.trips.length >= 4 ? tc.rows : d.trips).map((t) => (
           <article className="card trip" key={t.shipment_id}>
             <div className="thead">
               <div className="tid">
@@ -86,7 +121,7 @@ export default function Home() {
                   {t.shipment_id} · {t.origin_city} → {t.facility_name}
                 </p>
               </div>
-              <span className={`pill p-${t.priority_code.toLowerCase()}`}>{t.priority_code}</span>
+              <span className={`pri p-${t.priority_code.toLowerCase()}`}>{t.priority_code}</span>
             </div>
 
             <dl className="facts">
@@ -127,6 +162,9 @@ export default function Home() {
             </div>
           </article>
         ))}
+        {d.trips.length >= 4 && tc.rows.length === 0 && (
+          <p className="empty">No trip matches that.</p>
+        )}
       </section>
     </main>
   );

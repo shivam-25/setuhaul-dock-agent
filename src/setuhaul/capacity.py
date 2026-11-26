@@ -390,7 +390,9 @@ def operations_metrics(con) -> dict:
             "slot_utilisation": round(used / slots, 3) if slots else None,
             "duplicates_replayed": dupes,
             "escalations": escal,
-            "conflicting_allocations": conflicts}
+            "conflicting_allocations": conflicts,
+            **{f"wait_{k}": v for k, v in waiting_times(con).items()
+               if k != "still_waiting"}}
 
 # ---------------------------------------------------------------- D7: scarce capacity
 # "How do you order simultaneous requests when capacity runs short?"
@@ -478,3 +480,118 @@ def priority_gate(con, ctx: Ctx, ranked: list[Candidate], now: datetime) -> tupl
     if not allowed:                      # never starve the driver in front of us
         return ranked, []
     return allowed, withheld
+
+# ---------------------------------------------------------------- arrival is not an ETA
+# The brief lists gate check-in as one of the five parties, and the scheduling model reads
+# gate-in as "evidence that the truck is available now". Nothing in this service read it.
+#
+# That is not cosmetic. An ETA is an estimate and earns a confidence buffer - up to 30
+# minutes for a LOW-confidence driver declaration. A truck standing in the yard is not an
+# estimate. Buffering it pushes a truck that is physically present past slots it could
+# take, and asking it "when will you arrive?" wastes the driver's time on a fact the
+# backend already holds.
+
+ARRIVED_WAITING = ("WAITING_EARLY", "WAITING_LATE", "WAITING_DOCK_UNAVAILABLE")
+
+
+def arrival(con, shipment_id: str) -> dict | None:
+    """What gate check-in knows about this truck, or None if it has not arrived."""
+    r = con.execute(
+        "SELECT gate_in_ts, yard_queue_enter_ts, dock_in_ts, unload_start_ts, unload_end_ts,"
+        "       gate_out_ts, arrival_state, queue_state, queue_position, "
+        "       (SELECT dock_code FROM docks d WHERE d.dock_id = f.actual_dock_id) AS dock_code "
+        "FROM facility_checkins f WHERE shipment_id=? ORDER BY gate_in_ts DESC LIMIT 1",
+        (shipment_id,)).fetchone()
+    if not r:
+        return None
+    cols = ("gate_in_ts","yard_queue_enter_ts","dock_in_ts","unload_start_ts","unload_end_ts",
+            "gate_out_ts","arrival_state","queue_state","queue_position","dock_code")
+    d = dict(r) if isinstance(r, dict) else dict(zip(cols, r))
+    d["has_arrived"]  = bool(d.get("gate_in_ts"))
+    d["on_dock"]      = d.get("queue_state") == "IN_DOCK" or bool(d.get("dock_in_ts"))
+    d["finished"]     = d.get("queue_state") == "COMPLETED" or bool(d.get("gate_out_ts"))
+    d["still_waiting"] = d.get("queue_state") in ARRIVED_WAITING
+    return d
+
+
+def apply_arrival(con, ctx: Ctx) -> tuple[Ctx, str | None]:
+    """Replace a predicted ETA with the observed one when the truck is already here.
+
+    Returns (ctx, note). The note is for the audit trail and the box log, so a reader can
+    see why the buffer disappeared.
+    """
+    a = arrival(con, ctx.shipment_id)
+    if not a or not a["has_arrived"] or a["finished"]:
+        return ctx, None
+    if a["on_dock"]:
+        # Already unloading. This is a fixed task, not a scheduling candidate.
+        # The dock CODE (D2), never the internal id (DOCK-JAI-D2): handed the id, the model
+        # rendered it as "dock 12".
+        return ctx, f"already on dock {a.get('dock_code') or '?'} - unloading, not rebookable"
+    gate_in = dt_(a["gate_in_ts"])
+    ctx.effective_eta = gate_in
+    ctx.confidence = "HIGH"        # observed, so the buffer is zero - see CONFIDENCE_BUFFER_MIN
+    return ctx, (f"gated in at {gate_in:%H:%M} ({a.get('queue_state')}) - arrival observed, "
+                 f"so no confidence buffer is applied")
+
+
+def waiting_times(con) -> dict:
+    """The brief's measure: average driver waiting after rescheduling, gate-in to dock-in."""
+    rows = con.execute("SELECT shipment_id, gate_in_ts, dock_in_ts, queue_state "
+                       "FROM facility_checkins WHERE gate_in_ts IS NOT NULL").fetchall()
+    waits, still = [], []
+    for r in rows:
+        d = dict(r) if isinstance(r, dict) else dict(zip(
+            ("shipment_id","gate_in_ts","dock_in_ts","queue_state"), r))
+        if d["dock_in_ts"]:
+            waits.append((dt_(d["dock_in_ts"]) - dt_(d["gate_in_ts"])).total_seconds() / 60)
+        else:
+            still.append(d["shipment_id"])
+    return {"docked": len(waits),
+            "avg_gate_to_dock_min": round(sum(waits) / len(waits), 1) if waits else None,
+            "max_gate_to_dock_min": round(max(waits), 1) if waits else None,
+            "still_waiting": still,
+            "still_waiting_count": len(still)}
+
+
+# ---------------------------------------------------------------- a promise can go stale
+# Brief level 5, "the world changes mid-conversation" (SHP1005, APT1008), and the measure
+# "options later found infeasible - re-check each shown option at confirmation".
+#
+# SHP1005 holds a CONFIRMED appointment on D3 for 09:00-10:00. At 10:05 that window has
+# closed and the truck is still in the yard as WAITING_DOCK_UNAVAILABLE. Reporting it as
+# "confirmed" is literally true and operationally false: the slot is gone. A commitment
+# has to be checked against the clock before it is repeated to a driver.
+
+def commitment_state(con, shipment_id: str, now: datetime) -> dict | None:
+    r = con.execute(
+        "SELECT a.appointment_id, a.appointment_status, d.dock_code, "
+        "       s.slot_start_ts, s.slot_end_ts "
+        "FROM appointments a "
+        "JOIN appointment_slots s ON s.slot_id = a.slot_id "
+        "JOIN docks d ON d.dock_id = s.dock_id "
+        f"WHERE a.shipment_id=? AND a.is_current=1 AND a.appointment_status IN {ACTIVE} "
+        "ORDER BY s.slot_start_ts LIMIT 1", (shipment_id,)).fetchone()
+    if not r:
+        return None
+    cols = ("appointment_id","appointment_status","dock_code","slot_start_ts","slot_end_ts")
+    d = dict(r) if isinstance(r, dict) else dict(zip(cols, r))
+    start, end = dt_(d["slot_start_ts"]), dt_(d["slot_end_ts"])
+    # The agent carries a naive clock (IST already applied); slot rows carry +05:30. Compare
+    # like with like rather than letting the mismatch surface as a TypeError mid-conversation.
+    if now.tzinfo is None:
+        start, end = start.replace(tzinfo=None), end.replace(tzinfo=None)
+    elif start.tzinfo is None:
+        start, end = start.replace(tzinfo=now.tzinfo), end.replace(tzinfo=now.tzinfo)
+    arr = arrival(con, shipment_id) or {}
+    if arr.get("on_dock") or arr.get("finished"):
+        phase = "being_served"
+    elif now >= end:
+        phase = "lapsed"           # the window closed and the truck never got the dock
+    elif now >= start:
+        phase = "in_window"        # due now
+    else:
+        phase = "upcoming"
+    d.update(start=start, end=end, phase=phase,
+             minutes_past_end=round((now - end).total_seconds() / 60) if now > end else 0)
+    return d

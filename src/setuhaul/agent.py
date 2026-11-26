@@ -8,7 +8,8 @@ from botocore.config import Config
 from . import prompts
 from .capacity import (Ctx, dt_, ts, CONFIDENCE_BUFFER_MIN, candidates, feasible,
                        rank_options, claim, commit_booking, LostRace, audit, ACTIVE,
-                       priority_gate, POLICY_VERSION)
+                       priority_gate, POLICY_VERSION, apply_arrival,
+                       commitment_state)
 
 REGION = os.environ.get("AWS_REGION") or "ap-southeast-2"
 # A named profile is a developer-laptop idea. On Lambda or AgentCore there is no profile and no
@@ -405,6 +406,27 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
     if latest is not None: ctx.latest_acceptable = latest
     box(6, "eta", f"{eta:%H:%M} {conf} -> ready {ctx.ready_at:%H:%M} ({why})")
 
+    # Gate check-in outranks any prediction. A truck in the yard is a fact, not an
+    # estimate, so the confidence buffer goes to zero; a truck on a dock is a fixed task
+    # and must not be offered a new slot at all.
+    ctx, arr_note = apply_arrival(con, ctx)
+    if arr_note:
+        box(6, "arrival", arr_note)
+        audit(con, request_id=rid, box="6", decision="arrival_observed",
+              shipment_id=shipment_id, thread_id=thread_id,
+              detail={"note": arr_note, "eta": ts(ctx.effective_eta)}, now=now)
+    if arr_note and "not rebookable" in arr_note:
+        # Written in code, not drafted. The content is fixed and the only variable is a dock
+        # code - handed "dock D2" the model twice wrote "dock 12". There is nothing here for
+        # a model to add, and a wrong dock code sends a truck to the wrong bay.
+        dock = arr_note.split("already on dock ", 1)[1].split(" ", 1)[0]
+        box(11, "reply", "already unloading; fixed text, no model")
+        rec["route"] = "auto"
+        rec["reply"] = (f"You are already on dock {dock} and unloading. "
+                        f"Nothing needs to be rebooked.")
+        rec["checks"] = []
+        rec["ms"] = int((time.time() - rec["t0"]) * 1000); return rec
+
     # The driver said this out loud; the next turn must not re-derive from the original plan.
     # load_ctx already reads eta_updates (via v_latest_eta) and driver_exceptions - nothing
     # was ever writing them, so every turn restarted from the seeded ETA.
@@ -452,18 +474,56 @@ def handle(con, *, message, driver_id, thread_id, now, shipment_id=None, intent_
         if appt:
             st, en = dt_(appt[3]), dt_(appt[4])
             opts = [_Shown(appt[2], st, en)]
-            ctxt = (f"The driver is asking about their existing booking, not for new slots. "
-                    f"They have dock {appt[2]} from {st:%H:%M} to {en:%H:%M}. Its status is "
-                    f"{appt[1]}. Tell them that and nothing else. Do not offer other slots.")
             status = appt[1]
+            # A commitment is only news if it is still true. SHP1005 holds a CONFIRMED 09:00
+            # to 10:00 on D3; at 10:05 the window has closed and the truck is still in the
+            # yard. Repeating "confirmed" then is true of the row and false of the world.
+            cstate = commitment_state(con, shipment_id, now)
+            phase = (cstate or {}).get("phase")
+            if phase == "lapsed":
+                late = cstate["minutes_past_end"]
+                box(7, "stale", f"commitment on {appt[2]} ended {late} min ago and the truck "
+                                f"never got the dock - reporting it as live would be false")
+                audit(con, request_id=rid, box="7", decision="commitment_lapsed",
+                      shipment_id=shipment_id, thread_id=thread_id,
+                      detail={"appointment": appt[0], "dock": appt[2],
+                              "ended": ts(en), "minutes_past_end": late}, now=now)
+                opts = []        # nothing live to name, so C9 must not demand a time
+                status = "LAPSED"
+                ctxt = (f"The driver's booked window on dock {appt[2]} ENDED {late} minutes ago "
+                        f"and they never got onto the dock - they are still waiting in the yard. "
+                        f"Tell them plainly that the booked window has passed and is no longer "
+                        f"valid, and that a SetuHaul coordinator is being brought in to get them "
+                        f"a new one. Do NOT say anything is confirmed, held or booked. Do not "
+                        f"name a new time, because none has been agreed yet.")
+            elif phase == "being_served":
+                ctxt = (f"The driver is already on dock {appt[2]} and unloading now. Tell them "
+                        f"that in one short sentence. Do not offer other slots.")
+            else:
+                when = "now" if phase == "in_window" else "later"
+                ctxt = (f"The driver is asking about their existing booking, not for new slots. "
+                        f"They have dock {appt[2]} from {st:%H:%M} to {en:%H:%M} ({when}). Its "
+                        f"status is {appt[1]}. Tell them that and nothing else. Do not offer "
+                        f"other slots.")
         else:
             opts, status = [], "NOT_RESERVED"
             ctxt = ("The driver is asking whether they have a dock booked. They do NOT - nothing "
                     "is held or booked for them. Say that plainly, then say they can ask for "
                     "options and you will show what fits. Do not name any dock or time.")
-        text, ms, fails = draft_reply(ctxt, opts, status)
-        box(11, "reply", f"status answer; checks {'passed' if not fails else fails}", ms)
-        rec["route"] = "auto" if not fails else "human"
+        if status == "LAPSED":
+            # The driver is standing in a yard past a window that no longer exists. This
+            # sentence has to be exactly right every time, so it is not drafted: naming the
+            # lapsed dock would also trip C1/C3, which police slots we are OFFERING.
+            text, ms, fails = (
+                f"Your booked window on dock {appt[2]} ({st:%H:%M} to {en:%H:%M}) has passed "
+                f"and is no longer valid. You are still in the yard, so a SetuHaul "
+                f"coordinator is picking this up now to get you a new window. "
+                f"I am not holding a slot for you at the moment.", 0, [])
+            box(11, "reply", "lapsed commitment; fixed text, no model")
+        else:
+            text, ms, fails = draft_reply(ctxt, opts, status)
+            box(11, "reply", f"status answer; checks {'passed' if not fails else fails}", ms)
+        rec["route"] = "human" if (fails or status == "LAPSED") else "auto"
         rec["reply"] = text if not fails else ("I've passed this to a SetuHaul coordinator so you "
                                                "get an accurate answer rather than a guess.")
         rec["checks"] = fails

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { myTrips } from "../lib/api";
 import { useSession } from "../lib/session";
-import { BarChart, Progress, Stat, DemoClock } from "../components/charts";
+import { BarChart, Progress, Stat, DemoClock, delayText } from "../components/charts";
 import { useTableControls, Toolbar, PRIORITIES, PRANK } from "../components/table";
 
 const LEVEL = { critical: "Act now", warn: "Check this", info: "For info", ok: "All good" };
@@ -138,7 +138,7 @@ export default function Home() {
               <div>
                 <dt>Now expected</dt>
                 <dd className={t.delay_min >= 15 ? "warnfg" : ""}>
-                  {t.eta_hm || "—"}{t.delay_min ? ` (+${t.delay_min}m)` : ""}
+                  {t.eta_hm || "—"}{t.delay_min ? ` (${delayText(t.delay_min)})` : ""}
                 </dd>
               </div>
               <div>

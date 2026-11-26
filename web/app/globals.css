@@ -442,3 +442,5 @@ table.grid tbody tr:hover td { background: var(--raise); }
            color: var(--muted); }
 .dcTime  { font-family: var(--ff-mono); font-size: 17px; font-weight: 600; line-height: 1; }
 .dcDay   { font-size: 10.5px; color: var(--muted); }
+
+.earlyfg { color: var(--free); }

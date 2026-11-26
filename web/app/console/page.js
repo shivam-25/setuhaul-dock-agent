@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { opsOverview, pending, decide } from "../../lib/api";
 import { useSession } from "../../lib/session";
-import { BarChart, Split, Stat, DemoClock } from "../../components/charts";
+import { BarChart, Split, Stat, DemoClock, delayText } from "../../components/charts";
 import { useTableControls, Toolbar, PRIORITIES, PRANK } from "../../components/table";
 
 const FAC_COLOURS = ["var(--fac-a)", "var(--fac-b)", "var(--busy)", "var(--free)"];
@@ -216,8 +216,9 @@ export default function Console() {
                     <td className="trunc">{a.customer}</td>
                     <td><Pri p={a.priority} /></td>
                     <td className="mono">{a.eta}</td>
-                    <td className={"mono " + (a.delay_min >= 30 ? "warnfg" : "")}>
-                      {a.delay_min ? `+${a.delay_min}m` : "—"}</td>
+                    <td className={"mono " + (a.delay_min >= 30 ? "warnfg"
+                                             : a.delay_min < 0 ? "earlyfg" : "")}>
+                      {delayText(a.delay_min)}</td>
                     <td><span className={`why r${a.rank}`}>{a.why}</span></td>
                   </tr>
                 ))}

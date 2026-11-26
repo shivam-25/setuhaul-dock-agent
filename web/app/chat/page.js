@@ -3,6 +3,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { myTrips, send } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { delayText } from "../../components/charts";
 
 // Quick prompts, not test cases. The old screen listed the evaluation ladder - the
 // adversarial case included - which is a developer's harness, not something to put in
@@ -122,7 +123,7 @@ function ChatInner() {
               <div><dt>Route</dt><dd>{trip.origin_city} → {trip.facility_name}</dd></div>
               <div><dt>Priority</dt><dd>{trip.priority_code}</dd></div>
               <div><dt>Status</dt><dd>{trip.stage}</dd></div>
-              <div><dt>Expected</dt><dd>{trip.eta_hm}{trip.delay_min ? ` (+${trip.delay_min}m)` : ""}</dd></div>
+              <div><dt>Expected</dt><dd>{trip.eta_hm}{trip.delay_min ? ` (${delayText(trip.delay_min)})` : ""}</dd></div>
               <div><dt>Dock</dt><dd>{trip.dock_code ? `${trip.dock_code} · ${trip.slot_hm}` : "not booked"}</dd></div>
               <div><dt>Load</dt><dd>{trip.pallet_count} pallets · {trip.load_weight_kg} kg</dd></div>
             </dl>

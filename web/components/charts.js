@@ -87,3 +87,16 @@ export function DemoClock({ now, day }) {
     </div>
   );
 }
+
+
+/** Minutes against plan, signed correctly.
+ *
+ * A truck can be EARLY. Writing `+${delay}m` rendered a thirty-minute-early arrival as
+ * "+-30m", which is not a quantity. Early is real and worth seeing - it is the brief's
+ * own case that an early truck does not get to jump the queue.
+ */
+export function delayText(min, { long = false } = {}) {
+  if (!min) return long ? "on time" : "—";
+  const n = Math.abs(min);
+  return min > 0 ? `+${n}m` : (long ? `${n}m early` : `−${n}m`);
+}

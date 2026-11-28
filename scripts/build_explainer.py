@@ -29,7 +29,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORK = ROOT / "build" / "explainer"
 CARDS = WORK / "cards"
 WORK.mkdir(parents=True, exist_ok=True)
-A = WORK / "audio"; A.mkdir(exist_ok=True)
+A = WORK / "audio"; A.mkdir(exist_ok=True)   # per-voice subdir assigned below
 S = WORK / "segments"; S.mkdir(exist_ok=True)
 if not CARDS.is_dir():
     sys.exit("no cards - run scripts/build_explainer_cards.py first")
@@ -57,32 +57,43 @@ TTS_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{TTS_MODEL}:
 VOICE = "Charon"
 STYLE = ("Read as a calm, confident technical narrator presenting to engineers. "
          "Even pace, natural pauses at the full stops, no hard sell: ")
+# Cache renders per voice. Keying on the filename alone meant a build after the switch
+# from edge-tts silently reused yesterday's edge-tts m4a files and reported success:
+# same numbers out, old voice in. A directory per voice makes that impossible.
+A = A / f"gemini-{VOICE.lower()}"; A.mkdir(parents=True, exist_ok=True)
 
-LUFS = "loudnorm=I=-16:TP=-1.5:LRA=11"   # matches the level that read well on the last project
+# Speech out of the synthesiser sits quiet with spiky plosives: -17.2 LUFS integrated
+# while already peaking at -1.8 dBTP, a 15.4 LU peak-to-loudness ratio. Gain alone would
+# clip it. So: compress gently to even out the peaks, then two-pass loudnorm to the
+# target. Single-pass loudnorm is a dynamic estimator and lands about a LU short - that
+# is why the first attempt at this measured -17.1 and changed nothing.
+COMP = "acompressor=threshold=-18dB:ratio=3:attack=5:release=120"
+I, TP, LRA = -16.0, -1.5, 11.0
 TAIL = 0.8             # silence after each line, so a cut lands in a pause
 FADE = 0.3             # video fade in/out, spent inside that silence
-MAX_LEN = 345
-MAX_STRETCH = 1.8      # past this the footage crawls; hold the last frame instead
+MAX_LEN = 315
+MAX_STRETCH = 2.0      # these are discrete screenshots ~1s apart, so a slow cadence reads
+                       # fine; past this it crawls and the last frame is held instead
 
 SLIDES = [
- "On a bad morning at SetuHaul, thirty-five drivers message within half an hour. Six facilities, thirty-two dock doors, and not one live G P S feed. So every arrival time is a claim, not a measurement. One late truck breaks a whole chain of promises. But the single driver is not the hard part. The hard part is this. Two conversations read the same free slot, both drivers say yes, and only one promise can be true.",
- "So we built a dock exception service that drivers message in plain language. It reads the message, works out what the truck can actually reach, holds one slot, and asks a human to accept it. Four rules hold the whole thing up. Capacity is arithmetic, not judgement. Nothing is promised until a warehouse accepts. Two partial unique indexes make a double booking impossible at the database, not merely unlikely in the code. And every decision is written to an append-only log.",
- "The architecture is three roles, over one engine, over one database. Driver, coordinator and warehouse each get their own console. Next dot J S on Vercel serves them, and proxies the A P I, so the session cookie stays same-origin. Behind that, a single Lambda runs FastAPI and the eleven step engine. Postgres holds the state, the indexes, and the audit log. And Bedrock sits off to one side, reached by just two of the eleven steps. The engine never trusts the browser for identity.",
- "So what actually happens to a message? First it loads the trip, screens it for prompt injection, and catches a retry. All of that before any model runs. Step four is the first one that does. It turns the sentence into fields. Five works out which trip was meant. Six adds a confidence buffer to the declared arrival. Seven routes it: a booking, a status question, or a question back. Eight ranks the feasible slots. Nine inserts the hold, and that is where the database, not the code, blocks a double booking. Then ten re-checks the answer against the decision, before eleven writes the reply.",
- "Which leaves the real question. Where is the model actually used? Capacity needs arithmetic, not a language model. So it earns its place at just two edges, where the work starts and ends in human sentences. Going in, at step four, Nova Micro turns around two hours late, anything after seven, into structured fields. It gets no slot data and no booking power, so it cannot schedule anything. Coming out, at step eleven, it phrases a decision the code has already made. The times are passed in, it may not invent one, and any mismatch goes to a person. Plenty of replies use no model at all.",
+ "On a bad morning at SetuHaul, thirty-five drivers message within half an hour. Six facilities, thirty-two dock doors, and not one live G P S feed. So every arrival time is a claim, not a measurement. But the single late driver is not the hard part. The hard part is this. Two conversations read the same free slot, both drivers say yes, and only one promise can be true.",
+ "So we built a dock exception service that drivers message in plain language. It reads the message, works out what the truck can actually reach, holds one slot, and asks a human to accept it. Four rules hold it up. Capacity is arithmetic, not judgement. Nothing is promised until a warehouse accepts. Two partial unique indexes make a double booking impossible at the database, not merely unlikely in the code. And every decision is written to an append-only log.",
+ "The architecture is three roles, over one engine, over one database. Driver, coordinator and warehouse each get their own console. Next dot J S on Vercel serves them, and proxies the A P I, so the session cookie stays same-origin. Behind that, one Lambda runs FastAPI and the eleven step engine, and Postgres holds the state, the indexes and the audit log. Bedrock sits off to one side, reached by just two of the eleven steps.",
+ "So what happens to a message? It loads the trip, screens for prompt injection, and catches a retry, all before any model runs. Step four is the first one that does. It turns the sentence into fields. Five works out which trip was meant. Six adds a confidence buffer to the arrival. Seven routes it: a booking, a status question, or a question back. Eight ranks the feasible slots. Nine inserts the hold, and that is where the database, not the code, blocks a double booking. Ten re-checks the answer before eleven writes the reply.",
+ "Which leaves the real question. Where is the model used? Capacity needs arithmetic, not a language model, so it earns its place at just two edges. Going in, at step four, Nova Micro turns around two hours late, anything after seven, into structured fields. It gets no slot data and no booking power, so it cannot schedule anything. Coming out, at step eleven, it phrases a decision the code has already made. The times are passed in, it may not invent one, and a mismatch goes to a person.",
 ]
 
 DEMOS = [
  ("setuhaul-e2e-01-driver", 0,
   "So let us drive it, against the deployed stack. A driver signs in, sees only their own trips, and says they are about sixty minutes late. That is not taken as a time. It is buffered. And the booked window on dock D four turns out to close fifty minutes before the truck can reach it. So the promise is withdrawn, rather than repeated. Three reachable windows are offered, and none of them is reserved. The driver says the second one works, and the second one is what gets held."),
  ("setuhaul-e2e-04-queries-failures", 0,
-  "Now a second driver, and the answers it refuses to give. Asked whether the warehouse has accepted, it answers the status, rather than offering a fresh list. Asked to book the earliest dock, it books, because an explicit request is the only thing that takes a hold. Asked for a slot after seven that also finishes by half past one, it does not report a shortage of docks. A window that shuts before it opens is a misreading of the driver, so it asks which limit is real. And told to ignore its instructions and hand over a dock, it refuses at the gate, and passes the conversation to a person. Those last two cost one and a half seconds, and half a second, because neither of them reaches the expensive path."),
+  "Now a second driver, and the answers it refuses to give. Asked whether the warehouse has accepted, it answers the status, rather than offering a fresh list. Asked to book the earliest dock, it books, because an explicit request is the only thing that takes a hold. Asked for a slot after seven that also finishes by half past one, it does not report a shortage of docks. A window that shuts before it opens is a misreading of the driver, so it asks which limit is real. And told to ignore its instructions and hand over a dock, it refuses at the gate, and passes the conversation to a person."),
  ("setuhaul-e2e-03-warehouse", 0,
-  "Meanwhile, nothing is promised yet. The hold is waiting in the warehouse queue, which says so plainly. Held, not confirmed. This is the Jaipur warehouse account, signed in directly, seeing six docks where the coordinator saw nine, because the view is scoped to that one facility. They accept. And only now is it a booking."),
+  "Meanwhile, nothing is promised yet. The hold waits in the warehouse queue, which says so plainly. Held, not confirmed. This is the Jaipur warehouse, seeing six docks where the coordinator saw nine, because the view is scoped to that one facility. They accept. And only now is it a booking."),
  ("setuhaul-e2e-02-ops-warehouse", 6.4,
-  "And here is the fleet, from the coordinator's desk. One card per truck, worst first. Asked what a truck can get, it reports seventy-nine chains checked. And the window the first driver took is already gone from the list, because both views read one database."),
+  "And here is the fleet, from the coordinator's desk. One card per truck, worst first. Asked what a truck can get, it reports seventy-nine chains checked. And the window the first driver took is already gone, because both views read one database."),
  ("setuhaul-e2e-05-driver-confirmed", 0,
-  "Which brings us back to the driver who started all this. His dashboard no longer warns him. The one o'clock window works, because he is ready at eleven fifty. He asks what the second driver asked, and gets a different answer. Confirmed, not waiting. He arrived with a promise that could not be kept, and leaves with a dock he can reach."),
+  "Which brings us back to the driver who started all this. His dashboard no longer warns him: the one o'clock window works, because he is ready at eleven fifty. He asks what the second driver asked and gets a different answer. Confirmed, not waiting. He leaves with a dock he can reach."),
 ]
 
 def dur(p):
@@ -93,28 +104,47 @@ def tts(i, line):
     """Gemini TTS -> 24k mono wav -> loudness-normalised aac, with TAIL seconds of silence."""
     wav, m4a = A/f"{i:02d}.wav", A/f"{i:02d}.m4a"
     if not m4a.exists():
+        # The wav is kept so the levelling chain can be re-run without paying for, or
+        # waiting on, the synthesis again. Delete the wav to force a fresh read.
+        if wav.exists():
+            _level(wav, m4a)
+            return m4a
         body = {"contents":[{"parts":[{"text": STYLE + line}]}],
                 "generationConfig":{"responseModalities":["AUDIO"],
                     "speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":VOICE}}}}}
         req = urllib.request.Request(TTS_URL, data=json.dumps(body).encode(),
             headers={"x-goog-api-key": KEY, "Content-Type":"application/json"})
         pcm = None
-        for attempt in range(5):
+        # The free tier rate-limits per minute, so a flat 5s backoff just burns the
+        # retries inside the same window. Back off exponentially up to a minute.
+        for attempt in range(8):
             try:
                 with urllib.request.urlopen(req, timeout=180) as r:
                     d = json.load(r)
                 pcm = base64.b64decode(d["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
                 break
             except Exception as e:
-                print(f"  retry {attempt}: {e}"); time.sleep(5)
+                wait = min(60, 8 * 2 ** attempt)
+                print(f"  retry {attempt} in {wait}s: {e}", flush=True); time.sleep(wait)
         if pcm is None:
             raise RuntimeError(f"TTS failed for line {i}")
         with wave.open(str(wav), "wb") as w:
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(24000); w.writeframes(pcm)
-        subprocess.run(["ffmpeg","-y","-v","error","-i",str(wav),
-            "-af", f"{LUFS},apad=pad_dur={TAIL}",
-            "-ar","48000","-ac","2","-c:a","aac","-b:a","160k",str(m4a)],check=True)
+        _level(wav, m4a)
     return m4a
+
+def _level(src, dst):
+    """Compress, then two-pass loudnorm to I/TP/LRA, then pad with TAIL of silence."""
+    probe = subprocess.run(["ffmpeg","-hide_banner","-nostdin","-i",str(src),
+        "-af", f"{COMP},loudnorm=I={I}:TP={TP}:LRA={LRA}:print_format=json",
+        "-f","null","-"], capture_output=True, text=True).stderr
+    m = json.loads(probe[probe.rindex("{"):probe.rindex("}")+1])
+    ln = (f"loudnorm=I={I}:TP={TP}:LRA={LRA}:linear=true"
+          f":measured_I={m['input_i']}:measured_TP={m['input_tp']}"
+          f":measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}")
+    subprocess.run(["ffmpeg","-y","-v","error","-i",str(src),
+        "-af", f"{COMP},{ln},apad=pad_dur={TAIL}",
+        "-ar","48000","-ac","2","-c:a","aac","-b:a","160k",str(dst)],check=True)
 
 def fade(d):
     """Fade in at the head and out over the tail silence, so cuts land in a pause."""

@@ -11,7 +11,7 @@ feasibility, never ranks two drivers against each other, and never commits a boo
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install boto3 "botocore[crt]"
-python3 scripts/audit.py          # deliverable 1 - data audit, 16 findings, each proven by query
+python3 scripts/audit.py          # deliverable 1 - data audit, 17 findings, each proven by query
 python3 scripts/build_workdb.py   # copy the snapshot, add slot_locks / decision_audit / request_log
 python3 scripts/race_test.py      # deliverable 5 - 20 concurrent claims on one slot, 10 repeats
 python3 scripts/dedupe_test.py    # box 3 - what counts as a retry, and what does not

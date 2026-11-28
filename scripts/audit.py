@@ -183,6 +183,21 @@ UNION ALL SELECT 'orphan_appointments_vs_slots',
   (SELECT COUNT(*) FROM appointments a LEFT JOIN appointment_slots s ON s.slot_id=a.slot_id WHERE s.slot_id IS NULL)
 UNION ALL SELECT 'orphan_shipments_vs_drivers',
   (SELECT COUNT(*) FROM shipments sh LEFT JOIN drivers dr ON dr.driver_id=sh.driver_id WHERE dr.driver_id IS NULL)"""),
+
+("D17","v_inbound_operational_state is one-row-per-shipment only by luck","MEDIUM",
+ "The view LEFT JOINs facility_checkins with no 'latest check-in' guard, unlike the v_latest_eta "
+ "join directly above it, which is explicitly de-duplicated. It returns 21 rows for 21 shipments "
+ "here only because this snapshot happens to hold at most one check-in per shipment. A truck that "
+ "is gated in, turned away and gated in again - ordinary at 280-360 loads a day - silently becomes "
+ "two rows, and any caller counting inbound trucks over-counts it. v_current_facility_queue shares "
+ "the join. This is why the engine reads facility_checkins directly with ORDER BY gate_in_ts DESC "
+ "LIMIT 1 (src/setuhaul/capacity.py, arrival()) rather than selecting from these two views.",
+ """SELECT 'shipments' AS measure, COUNT(*) AS value FROM shipments
+UNION ALL SELECT 'v_inbound_operational_state rows', COUNT(*) FROM v_inbound_operational_state
+UNION ALL SELECT 'max check-ins on any one shipment',
+  (SELECT MAX(c) FROM (SELECT COUNT(*) AS c FROM facility_checkins GROUP BY shipment_id))
+UNION ALL SELECT 'shipments with a second check-in',
+  (SELECT COUNT(*) FROM (SELECT shipment_id FROM facility_checkins GROUP BY shipment_id HAVING COUNT(*) > 1))"""),
 ]
 
 def table(cur, sql):

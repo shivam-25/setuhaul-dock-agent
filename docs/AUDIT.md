@@ -1,6 +1,6 @@
 # SetuHaul — data audit (deliverable 1)
 
-Generated 2026-11-25T14:13:44 against the supplied snapshot,
+Generated 2026-11-28T11:21:55 against the supplied snapshot,
 opened **read-only**. The snapshot is evidence and is never modified.
 
 Every finding below is produced by the query printed beneath it. Nothing is asserted without a query.
@@ -23,6 +23,7 @@ Every finding below is produced by the query printed beneath it. Nothing is asse
 | [D14](#d14) | The snapshot has no single 'now' | **HIGH** |
 | [D15](#d15) | The slot grid does not cover the hours the facilities claim to be open | **MEDIUM** |
 | [D16](#d16) | Foreign keys are not enforced in the shipped database | **MEDIUM** |
+| [D17](#d17) | v_inbound_operational_state is one-row-per-shipment only by luck | **MEDIUM** |
 
 ## D01
 ### Slot grid cannot hold 19% of loads
@@ -479,4 +480,37 @@ UNION ALL SELECT 'orphan_shipments_vs_drivers',
 
 ---
 
-_16 findings, 53 evidence rows, all reproducible via `python3 scripts/audit.py`._
+## D17
+### v_inbound_operational_state is one-row-per-shipment only by luck
+
+**Severity:** MEDIUM  ·  **Rows returned:** 4
+
+The view LEFT JOINs facility_checkins with no 'latest check-in' guard, unlike the v_latest_eta join
+directly above it, which is explicitly de-duplicated. It returns 21 rows for 21 shipments here only
+because this snapshot happens to hold at most one check-in per shipment. A truck that is gated in,
+turned away and gated in again - ordinary at 280-360 loads a day - silently becomes two rows, and
+any caller counting inbound trucks over-counts it. v_current_facility_queue shares the join. This is
+why the engine reads facility_checkins directly with ORDER BY gate_in_ts DESC LIMIT 1
+(src/setuhaul/capacity.py, arrival()) rather than selecting from these two views.
+
+**Proof:**
+
+```sql
+SELECT 'shipments' AS measure, COUNT(*) AS value FROM shipments
+UNION ALL SELECT 'v_inbound_operational_state rows', COUNT(*) FROM v_inbound_operational_state
+UNION ALL SELECT 'max check-ins on any one shipment',
+  (SELECT MAX(c) FROM (SELECT COUNT(*) AS c FROM facility_checkins GROUP BY shipment_id))
+UNION ALL SELECT 'shipments with a second check-in',
+  (SELECT COUNT(*) FROM (SELECT shipment_id FROM facility_checkins GROUP BY shipment_id HAVING COUNT(*) > 1))
+```
+
+| measure                           | value |
+|-----------------------------------|-------|
+| shipments                         | 21    |
+| v_inbound_operational_state rows  | 21    |
+| max check-ins on any one shipment | 1     |
+| shipments with a second check-in  | 0     |
+
+---
+
+_17 findings, 57 evidence rows, all reproducible via `python3 scripts/audit.py`._

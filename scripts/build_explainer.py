@@ -34,24 +34,35 @@ S = WORK / "segments"; S.mkdir(exist_ok=True)
 if not CARDS.is_dir():
     sys.exit("no cards - run scripts/build_explainer_cards.py first")
 
-def _key():
-    """GEMINI_API_KEY, or GEMINI_KEY_FILE naming a dotenv file that holds it.
+def _keys():
+    """Every key available, in order: GEMINI_API_KEYS (comma-separated), then
+    GEMINI_API_KEY, then GEMINI_KEY_FILE naming a dotenv file holding one.
 
-    The file form exists so the key never has to be pasted onto a command line or into
-    a shell history to run this build.
+    The TTS free tier is a DAILY quota, so a 429 is not worth waiting out - it means
+    that key is finished for the day. With more than one key the build rotates to the
+    next instead of sleeping, which is the difference between finishing and not.
+    The file form exists so a key need not be pasted onto a command line.
     """
+    out = []
+    for k in (os.environ.get("GEMINI_API_KEYS") or "").split(","):
+        if k.strip():
+            out.append(k.strip())
     k = os.environ.get("GEMINI_API_KEY")
-    if k:
-        return k.strip()
+    if k and k.strip() not in out:
+        out.append(k.strip())
     f = os.environ.get("GEMINI_KEY_FILE")
-    if f:
+    if f and pathlib.Path(f).expanduser().is_file():
         for ln in pathlib.Path(f).expanduser().read_text().splitlines():
             ln = ln.strip()
             if ln.startswith("GEMINI_API_KEY="):
-                return ln.split("=", 1)[1].strip().strip('"').strip("'")
-    sys.exit("set GEMINI_API_KEY, or GEMINI_KEY_FILE pointing at a dotenv file holding it")
+                v = ln.split("=", 1)[1].strip().strip('"').strip("'")
+                if v and v not in out:
+                    out.append(v)
+    if not out:
+        sys.exit("set GEMINI_API_KEYS (comma-separated), GEMINI_API_KEY, or GEMINI_KEY_FILE")
+    return out
 
-KEY = _key()
+KEYS = _keys()
 TTS_MODEL = "gemini-2.5-flash-preview-tts"
 TTS_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{TTS_MODEL}:generateContent"
 VOICE = "Charon"
@@ -100,6 +111,8 @@ def dur(p):
     return float(subprocess.run(["ffprobe","-v","error","-show_entries","format=duration",
         "-of","default=nw=1:nk=1",str(p)],capture_output=True,text=True).stdout.strip())
 
+SPENT = set()   # keys whose daily quota ran out during this run
+
 def tts(i, line):
     """Gemini TTS -> 24k mono wav -> loudness-normalised aac, with TAIL seconds of silence."""
     wav, m4a = A/f"{i:02d}.wav", A/f"{i:02d}.m4a"
@@ -109,23 +122,37 @@ def tts(i, line):
         if wav.exists():
             _level(wav, m4a)
             return m4a
-        body = {"contents":[{"parts":[{"text": STYLE + line}]}],
+        body = json.dumps({"contents":[{"parts":[{"text": STYLE + line}]}],
                 "generationConfig":{"responseModalities":["AUDIO"],
-                    "speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":VOICE}}}}}
-        req = urllib.request.Request(TTS_URL, data=json.dumps(body).encode(),
-            headers={"x-goog-api-key": KEY, "Content-Type":"application/json"})
+                    "speechConfig":{"voiceConfig":{"prebuiltVoiceConfig":{"voiceName":VOICE}}}}}).encode()
         pcm = None
-        # The free tier rate-limits per minute, so a flat 5s backoff just burns the
-        # retries inside the same window. Back off exponentially up to a minute.
-        for attempt in range(8):
-            try:
-                with urllib.request.urlopen(req, timeout=180) as r:
-                    d = json.load(r)
-                pcm = base64.b64decode(d["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
+        # Try every key before sleeping: a 429 is a spent daily quota on THAT key, so
+        # rotating costs nothing and waiting costs the whole build. Only once all of
+        # them have refused does a wait make sense, in case it was per-minute after all.
+        for rnd in range(3):
+            for ki, key in enumerate(KEYS):
+                if key in SPENT:
+                    continue
+                try:
+                    req = urllib.request.Request(TTS_URL, data=body,
+                        headers={"x-goog-api-key": key, "Content-Type":"application/json"})
+                    with urllib.request.urlopen(req, timeout=180) as r:
+                        d = json.load(r)
+                    pcm = base64.b64decode(d["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])
+                    break
+                except urllib.error.HTTPError as e:
+                    if e.code == 429:
+                        SPENT.add(key)
+                        print(f"  key {ki+1}/{len(KEYS)}: quota spent, rotating", flush=True)
+                    else:
+                        print(f"  key {ki+1}/{len(KEYS)}: HTTP {e.code}", flush=True)
+                except Exception as e:
+                    print(f"  key {ki+1}/{len(KEYS)}: {type(e).__name__}", flush=True)
+            if pcm is not None:
                 break
-            except Exception as e:
-                wait = min(60, 8 * 2 ** attempt)
-                print(f"  retry {attempt} in {wait}s: {e}", flush=True); time.sleep(wait)
+            wait = min(60, 15 * 2 ** rnd)
+            print(f"  all {len(KEYS)} keys refused; waiting {wait}s", flush=True)
+            SPENT.clear(); time.sleep(wait)
         if pcm is None:
             raise RuntimeError(f"TTS failed for line {i}")
         with wave.open(str(wav), "wb") as w:
